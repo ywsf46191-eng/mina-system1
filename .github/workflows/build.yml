@@ -1,3 +1,4 @@
+
 name: Electron Build and Release
  
 on:
@@ -42,4 +43,13 @@ jobs:
         run: npm run electron:build
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+ 
+      - name: Upload EXE to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Release v1.0.${{ github.run_number }}"
+          files: dist-electron/**/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
  
