@@ -1,0 +1,30 @@
+appId: com.mina.clinicsystem
+productName: نظام إدارة العيادة
+directories:
+  output: dist-electron
+  buildResources: build
+files:
+  - from: dist
+    to: .
+  - from: electron
+    to: .
+  - node_modules/**/*
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+  certificateFile: null
+  certificatePassword: null
+  signingHashAlgorithms:
+    - sha256
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerLanguages:
+    - ar
+    - en
+  language: 1025
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: نظام إدارة العيادة
