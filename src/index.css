@@ -1,16 +1,6 @@
-@import "tailwindcss/base";
-@import "tailwindcss/components";
-@import "tailwindcss/utilities";
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
-  }
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: 0 0% 100%;
@@ -29,45 +19,18 @@
 
   --primary: 210 100% 50%;
   --primary-foreground: 0 0% 100%;
-  --primary-border: 210 100% 45%;
 
   --secondary: 210 50% 50%;
   --secondary-foreground: 0 0% 100%;
-  --secondary-border: 210 50% 45%;
 
   --muted: 0 0% 85%;
   --muted-foreground: 0 0% 45%;
-  --muted-border: 0 0% 80%;
 
   --accent: 48 100% 50%;
   --accent-foreground: 0 0% 0%;
-  --accent-border: 48 100% 45%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --destructive-border: 0 84% 55%;
-
-  --sidebar: 0 0% 100%;
-  --sidebar-foreground: 0 0% 0%;
-  --sidebar-border: 0 0% 90%;
-  --sidebar-primary: 210 100% 50%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-primary-border: 210 100% 45%;
-  --sidebar-accent: 48 100% 50%;
-  --sidebar-accent-foreground: 0 0% 0%;
-  --sidebar-accent-border: 48 100% 45%;
-  --sidebar-ring: 210 100% 50%;
-
-  --chart-1: 12 100% 50%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 89% 48%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
-
-  --app-font-sans: 'Inter', sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono: Menlo, monospace;
-  --radius: 0.5rem;
 }
 
 .dark {
@@ -87,38 +50,22 @@
 
   --primary: 210 100% 50%;
   --primary-foreground: 0 0% 0%;
-  --primary-border: 210 100% 45%;
 
   --secondary: 210 50% 50%;
   --secondary-foreground: 0 0% 0%;
-  --secondary-border: 210 50% 45%;
 
   --muted: 0 0% 25%;
   --muted-foreground: 0 0% 70%;
-  --muted-border: 0 0% 30%;
 
   --accent: 48 100% 50%;
   --accent-foreground: 0 0% 0%;
-  --accent-border: 48 100% 45%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 10%;
-  --destructive-border: 0 84% 55%;
+}
 
-  --sidebar: 0 0% 10%;
-  --sidebar-foreground: 0 0% 100%;
-  --sidebar-border: 0 0% 20%;
-  --sidebar-primary: 210 100% 50%;
-  --sidebar-primary-foreground: 0 0% 0%;
-  --sidebar-primary-border: 210 100% 45%;
-  --sidebar-accent: 48 100% 50%;
-  --sidebar-accent-foreground: 0 0% 0%;
-  --sidebar-accent-border: 48 100% 45%;
-  --sidebar-ring: 210 100% 50%;
-
-  --chart-1: 12 100% 50%;
-  --chart-2: 173 58% 39%;
-  --chart-3: 197 89% 48%;
-  --chart-4: 43 74% 66%;
-  --chart-5: 27 87% 67%;
+@layer base {
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
 }
