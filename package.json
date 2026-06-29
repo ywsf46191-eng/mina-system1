@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
+  "description": "Mina System for Dental Clinic Management",
+  "author": "Yousef Al-Ghoul",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"electron electron/main.cjs\"",
-    "electron:build": "vite build && electron-builder",
+    "generate:icon": "node ./scripts/generate-icon.js",
+    "electron:build": "npm run generate:icon && vite build && electron-builder",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -75,7 +78,9 @@
     "vaul": "^1.1.2",
     "vite": "^5.0.0",
     "wouter": "^3.3.5",
-    "zod": "^3.0.0"
+    "zod": "^3.0.0",
+    "png-to-ico": "^1.1.0",
+    "sharp": "^0.32.0"
   },
   "build": {
     "appId": "com.mina.clinicsystem",
@@ -85,11 +90,12 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "build/icon.ico"
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.svg"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
