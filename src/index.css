@@ -7,15 +7,11 @@
   --foreground: 0 0% 0%;
   --border: 0 0% 90%;
   --input: 0 0% 95%;
-  --ring: 0 0% 50%;
+  --ring: 210 100% 50%;
   
   --card: 0 0% 100%;
   --card-foreground: 0 0% 0%;
   --card-border: 0 0% 90%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 0%;
-  --popover-border: 0 0% 90%;
 
   --primary: 210 100% 50%;
   --primary-foreground: 0 0% 100%;
@@ -38,15 +34,11 @@
   --foreground: 0 0% 100%;
   --border: 0 0% 20%;
   --input: 0 0% 15%;
-  --ring: 0 0% 50%;
+  --ring: 210 100% 50%;
   
   --card: 0 0% 12%;
   --card-foreground: 0 0% 100%;
   --card-border: 0 0% 20%;
-
-  --popover: 0 0% 12%;
-  --popover-foreground: 0 0% 100%;
-  --popover-border: 0 0% 20%;
 
   --primary: 210 100% 50%;
   --primary-foreground: 0 0% 0%;
@@ -65,7 +57,25 @@
 }
 
 @layer base {
+  * {
+    @apply border-border;
+  }
+  
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .bg-background {
+    @apply bg-[hsl(var(--background))];
+  }
+  
+  .text-foreground {
+    @apply text-[hsl(var(--foreground))];
+  }
+  
+  .border-border {
+    @apply border-[hsl(var(--border))];
   }
 }
