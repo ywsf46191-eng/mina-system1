@@ -11,7 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"electron electron/main.cjs\"",
-    "generate:icon": "node ./scripts/generate-icon.js",
+    "generate:icon": "node ./scripts/generate-icon.cjs",
     "electron:build": "npm run generate:icon && vite build && electron-builder",
     "typecheck": "tsc --noEmit"
   },
