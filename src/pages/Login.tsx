@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, EyeOff, LogIn, Phone } from 'lucide-react';
-import minaLogo from '@assets/WhatsApp_Image_2026-06-27_at_10.27.29_AM_1782563839685.jpeg';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -33,7 +32,9 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4" dir="rtl">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm p-8">
         <div className="flex flex-col items-center mb-8">
-          <img src={minaLogo} alt="Mina System" className="w-16 h-16 rounded-2xl object-cover shadow-lg mb-4" />
+          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg mb-4">
+            <span className="text-white text-2xl font-bold">M</span>
+          </div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-white">نظام إدارة العيادة</h1>
           <p className="text-xs text-slate-400 mt-1">MINA SYSTEM</p>
         </div>
@@ -67,7 +68,7 @@ export default function Login() {
                 placeholder="••••••••"
                 dir="ltr"
                 required
-                className="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 pl-10"
+                className="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button type="button" onClick={() => setShowPass((v) => !v)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                 {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
