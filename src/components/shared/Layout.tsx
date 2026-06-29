@@ -4,7 +4,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { OfflineBadge } from './OfflineBadge';
 import { getClinicSettings } from '../../firebase/firestoreService';
-import minaLogo from '@assets/WhatsApp_Image_2026-06-27_at_10.27.29_AM_1782563839685.jpeg';
 import {
   Stethoscope, LogOut, LayoutDashboard, Users, Sun, Moon, CreditCard,
   Building2, Phone, UserCog, Package, Calculator, BarChart2, ImageIcon,
@@ -113,7 +112,9 @@ export function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-black tracking-widest text-blue-600 leading-none">MINA</p>
                 <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-widest leading-none mt-0.5">SYSTEM</p>
               </div>
-              <img src={minaLogo} alt="Mina System" className="w-10 h-10 rounded-xl object-cover shadow-md" />
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md">
+                <span className="text-white text-lg font-bold">M</span>
+              </div>
             </div>
             {userProfile && (
               <div className="mt-3 px-3 py-2 bg-slate-50 dark:bg-slate-700 rounded-xl">
