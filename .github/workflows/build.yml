@@ -1,32 +1,37 @@
 name: Electron Build and Release
-
+ 
 on:
   push:
     branches:
       - main # أو master حسب اسم الفرع الرئيسي عندك
-
+ 
 jobs:
   build:
     runs-on: windows-latest # بما أن مشروعك Electron ويندوز، يفضل البناء على سيرفر ويندوز
-
+ 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+ 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: 'npm'
-
+ 
       - name: Install dependencies
         run: npm install
-
+ 
+      - name: Fix PostCSS config (remove .js version to avoid ESM conflict)
+        run: del postcss.config.js
+        shell: cmd
+ 
       - name: Generate Icon
         run: npm run generate:icon
-
+ 
       - name: Web App Build
         run: npm run build
-
+ 
       - name: Electron Build
         run: npm run electron:build
+ 
