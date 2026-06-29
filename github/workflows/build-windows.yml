@@ -1,0 +1,23 @@
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '18'
+
+  - name: Install dependencies
+    run: npm ci
+
+  - name: Generate icon
+    run: npm run generate:icon
+
+  - name: Build (vite + electron-builder)
+    run: npm run electron:build
+    env:
+      CI: true
+
+  - name: Upload installer artifact
+    uses: actions/upload-artifact@v4
+    with:
+      name: windows-installer
+      path: |
+        dist-electron/*.exe
+        dist-electron/win-unpacked/**
