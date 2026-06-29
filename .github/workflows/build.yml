@@ -5,6 +5,9 @@ on:
     branches:
       - main
  
+permissions:
+  contents: write
+ 
 jobs:
   build:
     runs-on: windows-latest
@@ -37,4 +40,6 @@ jobs:
  
       - name: Electron Build
         run: npm run electron:build
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
  
