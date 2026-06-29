@@ -48,7 +48,7 @@
     "@radix-ui/react-tooltip": "^1.2.0",
     "@tailwindcss/typography": "^0.5.15",
     "@tanstack/react-query": "^5.0.0",
-    "@types/node": "^20.0.0",
+    "@types-node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.0.0",
@@ -79,7 +79,7 @@
     "vite": "^5.0.0",
     "wouter": "^3.3.5",
     "zod": "^3.0.0",
-    "png-to-ico": "^1.1.0",
+    "png-to-ico": "^2.1.8",
     "sharp": "^0.32.0"
   },
   "build": {
