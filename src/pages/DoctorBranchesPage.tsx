@@ -10,10 +10,13 @@ export default function DoctorBranchesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
 
   useEffect(() => {
-    const all = getBranches();
-    if (userProfile?.role === 'superadmin') { setBranches(all); return; }
-    const filtered = all.filter((b) => b.managerIds.includes(userProfile?.uid ?? ''));
-    setBranches(filtered.length > 0 ? filtered : all.filter((b) => b.id === userProfile?.clinicId));
+    (async () => {
+      const all = await getBranches();
+      if (userProfile?.role === 'superadmin') { setBranches(all); return; }
+      const managerIds = all.flatMap((b) => b.managerIds ?? []);
+      const filtered = all.filter((b) => managerIds.includes(userProfile?.uid ?? ''));
+      setBranches(filtered.length > 0 ? filtered : all.filter((b) => b.id === userProfile?.clinicId));
+    })();
   }, [userProfile]);
 
   return (

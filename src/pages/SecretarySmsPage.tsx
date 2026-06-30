@@ -25,18 +25,22 @@ export default function SecretarySmsPage() {
 
   const ready = Boolean(settings.hotSmsApiUrl && settings.hotSmsSender);
 
-  const refreshLog = useCallback(() => setLog(getSmsLog(clinicId)), [clinicId]);
+  const refreshLog = useCallback(async () => {
+    const newLog = await getSmsLog(clinicId);
+    setLog(newLog);
+  }, [clinicId]);
 
   useEffect(() => {
     autoSendRan.current = false;
     let cancelled = false;
     setLoading(true);
     Promise.all([getPatients(clinicId), getClinicSettings(clinicId)])
-      .then(([pts, s]) => {
+      .then(async ([pts, s]) => {
         if (cancelled) return;
         setPatients(pts);
         setSettings(s);
-        setLog(getSmsLog(clinicId));
+        const newLog = await getSmsLog(clinicId);
+        setLog(newLog);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -53,19 +57,19 @@ export default function SecretarySmsPage() {
   }): Promise<SendResult> => {
     if (!settings.hotSmsApiUrl || !settings.hotSmsSender) {
       const result: SendResult = { ok: false, error: 'يرجى إعداد رابط API واسم المرسل أولاً' };
-      addSmsLog({ ...opts, clinicId, status: 'failed', error: result.error });
-      refreshLog();
+      await addSmsLog({ ...opts, clinicId, status: 'failed', error: result.error });
+      await refreshLog();
       return result;
     }
     const result = await sendSms(settings.hotSmsApiUrl, settings.hotSmsSender, opts.phoneNumber, opts.message);
-    addSmsLog({
+    await addSmsLog({
       ...opts,
       clinicId,
       status: result.ok ? 'sent' : 'failed',
       code: result.code,
       error: result.ok ? undefined : result.error,
     });
-    refreshLog();
+    await refreshLog();
     return result;
   }, [settings.hotSmsApiUrl, settings.hotSmsSender, clinicId, refreshLog]);
 
@@ -91,8 +95,9 @@ export default function SecretarySmsPage() {
     setSettings((s) => ({ ...s, hotSmsLastAutoSend: today }));
 
     (async () => {
+      const allLog = await getSmsLog(clinicId);
       const alreadySent = new Set(
-        getSmsLog(clinicId)
+        allLog
           .filter((e) => e.status === 'sent' && e.source === 'auto' && e.appointmentDate === tomorrow)
           .map((e) => e.patientId),
       );
@@ -114,8 +119,14 @@ export default function SecretarySmsPage() {
     })();
   }, [loading, settings.hotSmsAutoSend, settings.hotSmsLastAutoSend, ready, patients, clinicId, doSend]);
 
-  const handleDelete = (id: string) => { deleteSmsLog(id, clinicId); refreshLog(); };
-  const handleClear = () => { clearSmsLog(clinicId); refreshLog(); };
+  const handleDelete = async (id: string) => {
+    await deleteSmsLog(id, clinicId);
+    await refreshLog();
+  };
+  const handleClear = async () => {
+    await clearSmsLog(clinicId);
+    await refreshLog();
+  };
 
   const TABS: { key: Tab; label: string; icon: typeof Send }[] = [
     { key: 'send', label: 'إرسال الرسائل', icon: Send },

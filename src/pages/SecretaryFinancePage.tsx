@@ -44,7 +44,7 @@ export default function SecretaryFinancePage() {
     try {
       const [pts, pays] = await Promise.all([
         getPatients(clinicId),
-        Promise.resolve(getPayments(clinicId)),
+        getPayments(clinicId),
       ]);
       setPatients(pts);
       setPayments(pays);
@@ -94,8 +94,8 @@ export default function SecretaryFinancePage() {
       method: payForm.method,
       note: payForm.note,
     };
-    createPayment({ ...payment });
-    const updated = getPayments(payClinicId);
+    await createPayment({ ...payment });
+    const updated = await getPayments(payClinicId);
     setPayments(updated);
     setSaving(false);
     setSavedMsg('تم تسجيل الدفعة ✓');
@@ -104,10 +104,11 @@ export default function SecretaryFinancePage() {
     setPayForm({ amount: '', method: 'cash', date: new Date().toISOString().split('T')[0], note: '' });
   };
 
-  const handleDeletePayment = (id: string) => {
+  const handleDeletePayment = async (id: string) => {
     const payClinicId = clinicId || selectedPatient?.clinicId || '';
-    deletePayment(id, payClinicId);
-    setPayments(getPayments(payClinicId));
+    await deletePayment(id, payClinicId);
+    const updated = await getPayments(payClinicId);
+    setPayments(updated);
   };
 
   return (
@@ -192,7 +193,7 @@ export default function SecretaryFinancePage() {
                       <button
                         key={p.id}
                         onClick={() => handleSelectPatient(p)}
-                        className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10 text-right transition"
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:border-emerald-600 dark:hover:bg-emerald-900/10 transition"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center shrink-0">
@@ -293,7 +294,7 @@ export default function SecretaryFinancePage() {
                                 <p className="text-xs text-slate-500 dark:text-slate-400">{(ts as { diagnosis?: string }).diagnosis}</p>
                               )}
                               <div className="flex items-center gap-2 mt-0.5">
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${s === 'done' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : s === 'inprogress' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' : s === 'treatment' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${s === 'done' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : s === 'inprogress' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' : s === 'treatment' ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'}`}>
                                   {s === 'done' ? '✅ مكتمل' : s === 'inprogress' ? '🟡 قيد العلاج' : s === 'treatment' ? '🔴 جارٍ' : '⚪ سليم'}
                                 </span>
                                 {sessTotal > 1 && (
