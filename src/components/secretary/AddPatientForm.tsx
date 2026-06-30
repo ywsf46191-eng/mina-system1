@@ -17,22 +17,24 @@ const dentalRowSchema = z.object({
   location: z.enum(['upper-right', 'upper-left', 'lower-right', 'lower-left']).default('upper-right'),
   diagnosis: z.string().optional().default(''),
   treatmentProcedure: z.string().optional().default(''),
-  // price/payment preprocess '' -> 0
   price: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
   payment: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
   remainingAmount: z.number().default(0),
   totalSessions: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
-  completedSessions: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
+  completedSessions: z.preprocess((v) => (Array.isArray(v) ? v : (v === '' || v == null ? 0 : Number(v))), z.union([z.number(), z.array(z.number())]).default(0)),
   sessionNotes: z.string().optional().default(''),
   nextAppointmentDate: z.string().optional().default(''),
 });
 
 const schema = z.object({
-  fileNumber: z.string()
-    .nonempty('رقم الملف مطلوب ويجب أن يكون رقمًا')
-    .regex(/^\d+$/, 'يجب أن يحتوي رقم الملف على أرقام فقط')
-    .transform((s) => parseInt(s, 10))
-    .refine((n) => Number.isFinite(n) && n >= 1, { message: 'يجب أن يكون رقم الملف رقمًا صحيحًا أكبر من صفر' }),
+  // preprocess trim then coerce to number — but keep validation robust
+  fileNumber: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const t = val.trim();
+      return t === '' ? undefined : Number(t);
+    }
+    return val;
+  }, z.number({ invalid_type_error: 'رقم الملف مطلوب ويجب أن يكون رقمًا', required_error: 'رقم الملف مطلوب' }).min(1, 'يجب أن يكون رقم الملف أكبر من صفر')),
   fullName: z.string().min(2, 'الاسم الثلاثي مطلوب'),
   gender: z.enum(['male', 'female']),
   phoneNumber: z.string().min(1, 'رقم الجوال مطلوب'),
@@ -100,27 +102,11 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   );
 }
 
-function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-700">{label}</span>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-blue-600' : 'bg-slate-300'}`}
-      >
-        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-6' : 'translate-x-0.5'}`} />
-      </button>
-    </div>
-  );
-}
-
 export default function AddPatientForm({ onSuccess }: Props) {
   const { clinicId } = useAuth();
   const [saved, setSaved] = useState(false);
 
   const {
-    register,
     control,
     handleSubmit,
     watch,
@@ -128,8 +114,9 @@ export default function AddPatientForm({ onSuccess }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
+    mode: 'onBlur',
     defaultValues: {
-      fileNumber: '' as unknown as FormData['fileNumber'],
+      // fileNumber left undefined — Controller will manage
       fullName: '',
       gender: 'male',
       phoneNumber: '',
@@ -137,7 +124,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
       isSmoker: false,
       pregnancyOrBreastfeeding: false,
       dentalRows: [],
-    },
+    } as any,
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'dentalRows' });
@@ -161,24 +148,28 @@ export default function AddPatientForm({ onSuccess }: Props) {
       completedSessions: 0,
       sessionNotes: '',
       nextAppointmentDate: '',
-    });
+    } as any);
   }, [append]);
 
   const onSubmit = async (data: FormData) => {
     if (!clinicId) {
-      alert('تعذّر حفظ المريض: حسابك غير مرتبط بأي عيادة (clinicId فارغ). يرجى مراجعة الطبيب/الأدمن للتأكد من ربط الحساب.');
+      alert('تعذّر حفظ المريض: حسابك غير مرتبط بأي عيادة (clinicId فارغ).');
       return;
     }
 
-    // defensive: ensure fileNumber numeric
-    const fileNumberNum = typeof data.fileNumber === 'number' ? data.fileNumber : Number(data.fileNumber);
+    // fileNumber already coerced by zod; be defensive:
+    const fileNumberNum = (data as any).fileNumber ?? NaN;
+    if (!Number.isFinite(fileNumberNum)) {
+      alert('رقم الملف غير صالح');
+      return;
+    }
 
-    // process dental rows and build dentalChart
-    const processedDentalRows = (data.dentalRows || []).map((row) => {
-      const p = Number((row as any).price) || 0;
-      const pay = Number((row as any).payment) || 0;
-      const totalSessions = Number((row as any).totalSessions) || 0;
-      const completedSessions = Number((row as any).completedSessions) || 0;
+    // process dental rows
+    const processedDentalRows = (data.dentalRows || []).map((row: any) => {
+      const p = Number(row.price) || 0;
+      const pay = Number(row.payment) || 0;
+      const totalSessions = Number(row.totalSessions) || 0;
+      const completedSessions = Array.isArray(row.completedSessions) ? row.completedSessions : (Number(row.completedSessions) ? [Number(row.completedSessions)] : []);
       const remaining = Math.max(0, p - pay);
       return {
         ...row,
@@ -192,12 +183,12 @@ export default function AddPatientForm({ onSuccess }: Props) {
       };
     });
 
-    // Build dentalChart: key = `${location}_${toothNo}` (e.g. upper-right_1)
+    // build dentalChart
     const dentalChart: Record<string, ToothState> = {};
-    processedDentalRows.forEach((r) => {
+    processedDentalRows.forEach((r: any) => {
       const key = `${r.location}_${r.toothNo}`;
-      const sessionsArray = Array.from({ length: Math.max(0, r.completedSessions) }, (_, i) => i + 1);
-      const ts: ToothState = {
+      const sessionsArray = Array.isArray(r.completedSessions) ? r.completedSessions : [];
+      dentalChart[key] = {
         diagnosis: r.diagnosis ?? '',
         amount: r.price ?? 0,
         treatmentStatus: (r.payment >= r.price && r.price > 0) ? 'done' : (r.price > 0 ? 'treatment' : 'none'),
@@ -207,16 +198,15 @@ export default function AddPatientForm({ onSuccess }: Props) {
         notes: r.treatmentProcedure ?? '',
         status: (r.payment >= r.price && r.price > 0) ? 'done' : undefined,
         workedOn: r.price > 0 || Boolean(r.diagnosis || r.treatmentProcedure),
-      };
-      dentalChart[key] = ts;
+      } as ToothState;
     });
 
     const patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'> = {
       clinicId,
       fileNumber: fileNumberNum,
-      fullName: data.fullName,
+      fullName: (data as any).fullName,
       gender: data.gender,
-      phoneNumber: data.phoneNumber || '',
+      phoneNumber: (data as any).phoneNumber ?? '',
       backupPhoneNumber: data.backupPhoneNumber ?? '',
       chronicDiseases: data.chronicDiseases ?? '',
       pastSurgeries: data.pastSurgeries ?? '',
@@ -225,10 +215,10 @@ export default function AddPatientForm({ onSuccess }: Props) {
       isSmoker: data.isSmoker ?? false,
       pregnancyOrBreastfeeding: data.pregnancyOrBreastfeeding ?? false,
       periodDetails: data.periodDetails ?? '',
-      dentalRows: processedDentalRows.map((r) => ({
+      dentalRows: processedDentalRows.map((r: any) => ({
         id: r.id,
         date: r.date,
-        toothNo: `${r.location}_${r.toothNo}`, // store combined id for legacy rows
+        toothNo: `${r.location}_${r.toothNo}`,
         diagnosis: r.diagnosis ?? '',
         treatmentProcedure: r.treatmentProcedure ?? '',
         price: r.price,
@@ -236,7 +226,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
         remainingAmount: r.remainingAmount,
       })),
       dentalChart,
-      nextAppointmentDate: processedDentalRows.find((r) => r.nextAppointmentDate)?.nextAppointmentDate ?? '',
+      nextAppointmentDate: processedDentalRows.find((r: any) => r.nextAppointmentDate)?.nextAppointmentDate ?? '',
       nextAppointmentTime: '',
       lastEditedBy: undefined,
       lastEditedAt: undefined,
@@ -250,7 +240,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
       onSuccess?.(id);
     } catch (error) {
       console.error('Error creating patient:', error);
-      alert('حدث خطأ أثناء حفظ المريض. تحقق من Console للمزيد.');
+      alert('حدث خطأ أثناء حفظ المريض. راجع Console.');
     }
   };
 
@@ -278,27 +268,48 @@ export default function AddPatientForm({ onSuccess }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>رقم الملف</Label>
-            <Input
-              type="text"
-              inputMode="numeric"
-              {...register('fileNumber' as any)}
-              placeholder="001"
-              error={errors?.fileNumber?.message as string | undefined}
+            <Controller
+              control={control}
+              name="fileNumber" as any
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  placeholder="001"
+                  inputMode="numeric"
+                  error={errors?.fileNumber?.message as string | undefined}
+                />
+              )}
             />
           </div>
+
           <div>
             <Label>الاسم الثلاثي</Label>
-            <Input {...register('fullName' as any)} placeholder="محمد أحمد العلي" error={errors?.fullName?.message as string | undefined} />
+            <Controller
+              control={control}
+              name="fullName" as any
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  placeholder="محمد أحمد العلي"
+                  error={errors?.fullName?.message as string | undefined}
+                />
+              )}
+            />
           </div>
+
           <div>
             <Label>الجنس</Label>
             <div className="flex gap-4 mt-2">
-              {((['male', 'female'] as const)).map((g) => (
+              {(['male', 'female'] as const).map((g) => (
                 <label key={g} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
                     value={g}
-                    {...register('gender' as any)}
+                    {...{ onChange: (e: any) => setValue('gender' as any, e.target.value), checked: gender === g }}
                     className="accent-blue-600"
                   />
                   <span className="text-sm text-slate-700">{g === 'male' ? 'ذكر' : 'أنثى'}</span>
@@ -306,6 +317,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
               ))}
             </div>
           </div>
+
           <div>
             <Label>رقم الجوال</Label>
             <Controller
@@ -316,6 +328,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
               )}
             />
           </div>
+
           <div>
             <Label>رقم جوال احتياطي</Label>
             <Controller
@@ -334,39 +347,44 @@ export default function AddPatientForm({ onSuccess }: Props) {
         <div className="space-y-4">
           <div>
             <Label>هل هناك أمراض مزمنة أو طارئة؟</Label>
-            <Textarea {...register('chronicDiseases' as any)} placeholder="اذكر الأمراض إن وجدت..." />
+            <Textarea {...{ onChange: (e: any) => setValue('chronicDiseases' as any, e.target.value), value: watch('chronicDiseases') as any }} placeholder="اذكر الأمراض إن وجدت..." />
           </div>
+
           <div>
             <Label>هل أجريت عملية جراحية؟</Label>
-            <Textarea {...register('pastSurgeries' as any)} placeholder="اذكر العمليات إن وجدت..." />
+            <Textarea {...{ onChange: (e: any) => setValue('pastSurgeries' as any, e.target.value), value: watch('pastSurgeries') as any }} placeholder="اذكر العمليات إن وجدت..." />
           </div>
+
           <div>
             <Label>هل تأخذ أي أدوية؟</Label>
-            <Textarea {...register('currentMedications' as any)} placeholder="اذكر الأدوية إن وجدت..." />
+            <Textarea {...{ onChange: (e: any) => setValue('currentMedications' as any, e.target.value), value: watch('currentMedications') as any }} placeholder="اذكر الأدوية إن وجدت..." />
           </div>
+
           <div>
             <Label>هل هناك حساسية؟</Label>
-            <Textarea {...register('allergies' as any)} placeholder="اذكر الحساسية إن وجدت..." />
+            <Textarea {...{ onChange: (e: any) => setValue('allergies' as any, e.target.value), value: watch('allergies') as any }} placeholder="اذكر الحساسية إن وجدت..." />
           </div>
 
           <div className="space-y-3 pt-2 border-t border-slate-100">
-            <Toggle
-              value={isSmoker}
-              onChange={(v) => setValue('isSmoker' as any, v)}
-              label="هل أنت مدخن؟"
-            />
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-700">هل أنت مدخن؟</span>
+              <button type="button" onClick={() => setValue('isSmoker' as any, !isSmoker)} className={`relative w-12 h-6 rounded-full transition-colors ${isSmoker ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isSmoker ? 'translate-x-6' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
 
             {gender === 'female' && (
               <div className="space-y-3">
-                <Toggle
-                  value={pregnancy}
-                  onChange={(v) => setValue('pregnancyOrBreastfeeding' as any, v)}
-                  label="هل أنتِ حامل أو مرضع؟"
-                />
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-slate-700">هل أنتِ حامل أو مرضع؟</span>
+                  <button type="button" onClick={() => setValue('pregnancyOrBreastfeeding' as any, !pregnancy)} className={`relative w-12 h-6 rounded-full transition-colors ${pregnancy ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${pregnancy ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
                 {pregnancy && (
                   <div>
                     <Label>يرجى تحديد الفترة</Label>
-                    <Input {...register('periodDetails' as any)} placeholder="مثال: الشهر الخامس من الحمل" />
+                    <Input {...{ onChange: (e: any) => setValue('periodDetails' as any, e.target.value), value: watch('periodDetails') as any }} placeholder="مثال: الشهر الخامس من الحمل" />
                   </div>
                 )}
               </div>
@@ -398,51 +416,62 @@ export default function AddPatientForm({ onSuccess }: Props) {
                 return (
                   <tr key={field.id} className="hover:bg-slate-50">
                     <td className="px-2 py-2">
-                      <input type="date" {...register(`dentalRows.${idx}.date` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
+                      <input type="date" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.date` as any, e.target.value), value: watch(`dentalRows.${idx}.date`) as any }} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
                     </td>
+
                     <td className="px-2 py-2">
-                      <select {...register(`dentalRows.${idx}.toothNo` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-20">
+                      <select {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.toothNo` as any, e.target.value), value: watch(`dentalRows.${idx}.toothNo`) as any }} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-20">
                         {Array.from({ length: 8 }, (_, i) => (i + 1).toString()).map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </td>
+
                     <td className="px-2 py-2">
-                      <select {...register(`dentalRows.${idx}.location` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32">
+                      <select {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.location` as any, e.target.value), value: watch(`dentalRows.${idx}.location`) as any }} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32">
                         <option value="upper-right">فك علوي أيمن</option>
                         <option value="upper-left">فك علوي أيسر</option>
                         <option value="lower-right">فك سفلي أيمن</option>
                         <option value="lower-left">فك سفلي أيسر</option>
                       </select>
                     </td>
+
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.diagnosis` as any)} placeholder="تشخيص..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
+                      <input {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.diagnosis` as any, e.target.value), value: watch(`dentalRows.${idx}.diagnosis`) as any }} placeholder="تشخيص..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
                     </td>
+
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.treatmentProcedure` as any)} placeholder="إجراء..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
+                      <input {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.treatmentProcedure` as any, e.target.value), value: watch(`dentalRows.${idx}.treatmentProcedure`) as any }} placeholder="إجراء..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
                     </td>
+
                     <td className="px-2 py-2">
                       <div className="flex items-center gap-1">
-                        <input type="number" {...register(`dentalRows.${idx}.totalSessions` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="number" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.totalSessions` as any, Number(e.target.value)), value: watch(`dentalRows.${idx}.totalSessions`) as any }} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         <span className="text-xs text-slate-400">/</span>
-                        <input type="number" {...register(`dentalRows.${idx}.completedSessions` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="number" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.completedSessions` as any, Number(e.target.value)), value: watch(`dentalRows.${idx}.completedSessions`) as any }} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                       </div>
                     </td>
+
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.sessionNotes` as any)} placeholder="ملاحظات الجلسة..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-40" />
+                      <input {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.sessionNotes` as any, e.target.value), value: watch(`dentalRows.${idx}.sessionNotes`) as any }} placeholder="ملاحظات الجلسة..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-40" />
                     </td>
+
                     <td className="px-2 py-2">
-                      <input type="date" {...register(`dentalRows.${idx}.nextAppointmentDate` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
+                      <input type="date" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.nextAppointmentDate` as any, e.target.value), value: watch(`dentalRows.${idx}.nextAppointmentDate`) as any }} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
                     </td>
+
                     <td className="px-2 py-2">
-                      <input type="number" {...register(`dentalRows.${idx}.price` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
+                      <input type="number" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.price` as any, Number(e.target.value)), value: watch(`dentalRows.${idx}.price`) as any }} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
                     </td>
+
                     <td className="px-2 py-2">
-                      <input type="number" {...register(`dentalRows.${idx}.payment` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
+                      <input type="number" {...{ onChange: (e: any) => setValue(`dentalRows.${idx}.payment` as any, Number(e.target.value)), value: watch(`dentalRows.${idx}.payment`) as any }} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
                     </td>
+
                     <td className="px-2 py-2">
                       <span className={`font-medium text-xs px-2 py-1 rounded-lg ${remaining > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                         ₪ {remaining.toLocaleString('ar')}
                       </span>
                     </td>
+
                     <td className="px-2 py-2">
                       <button type="button" onClick={() => remove(idx)} className="text-red-400 hover:text-red-600 transition">
                         <Trash2 className="w-4 h-4" />
