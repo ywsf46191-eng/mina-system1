@@ -51,14 +51,15 @@ export function Layout({ children }: LayoutProps) {
 
     if (userRole === 'doctor' || userRole === 'branch_manager') {
       const children = [
-        canSee('secretaries') && { label: 'السكرتارية', path: '/doctor/secretaries', icon: UserCog, pageKey: 'secretaries' },
-        canSee('doctors')     && { label: 'الأطباء',     path: '/doctor/doctors',     icon: Stethoscope, pageKey: 'doctors'     },
-        canSee('warehouse')   && { label: 'المخزن',      path: '/doctor/warehouse',   icon: Package,     pageKey: 'warehouse'   },
-        canSee('accounting')  && { label: 'المحاسبة',    path: '/doctor/accounting',  icon: Calculator,  pageKey: 'accounting'  },
-        canSee('statistics')  && { label: 'الإحصائيات', path: '/doctor/statistics',  icon: BarChart2,   pageKey: 'statistics'  },
-        canSee('appearance')  && { label: 'المظهر',      path: '/doctor/appearance',  icon: ImageIcon,   pageKey: 'appearance'  },
-      ].filter(Boolean) as { label: string; path: string; icon: React.ElementType; pageKey: string }[];
-
+  canSee('secretaries') && { label: 'السكرتارية', path: '/doctor/secretaries', icon: UserCog, pageKey: 'secretaries' },
+  canSee('doctors')     && { label: 'الأطباء',     path: '/doctor/doctors',     icon: Stethoscope, pageKey: 'doctors'     },
+  canSee('warehouse')   && { label: 'المخزن',      path: '/doctor/warehouse',   icon: Package,     pageKey: 'warehouse'   },
+  canSee('accounting')  && { label: 'المحاسبة',    path: '/doctor/accounting',  icon: Calculator,  pageKey: 'accounting'  },
+  canSee('statistics')  && { label: 'الإحصائيات', path: '/doctor/statistics',  icon: BarChart2,   pageKey: 'statistics'  },
+  canSee('appearance')  && { label: 'المظهر',      path: '/doctor/appearance',  icon: ImageIcon,   pageKey: 'appearance'  },
+  canSee('labs')        && { label: 'المعامل',      path: '/doctor/labs',        icon: FlaskConical, pageKey: 'labs' },
+  canSee('radiology')   && { label: 'الأشعة',       path: '/doctor/radiology',   icon: ImageIcon,    pageKey: 'radiology' },
+].filter(Boolean) as { label: string; path: string; icon: React.ElementType; pageKey: string }[];
       return [
         { label: 'لوحة الطبيب', path: '/doctor', icon: LayoutDashboard },
         { label: 'الأفرع', path: '/doctor/branches', icon: GitBranch },
