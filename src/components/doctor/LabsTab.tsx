@@ -1,3 +1,4 @@
+// name=src/components/doctor/LabsTab.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -5,16 +6,8 @@ import {
   getLabTransfers, addLabTransfer, updateLabTransfer, deleteLabTransfer,
   getPatients,
 } from '../../firebase/firestoreService';
-import { FlaskConical, Plus, Trash2, Eye, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { FlaskConical, Plus, Trash2, Eye, X } from 'lucide-react';
 import type { Lab, LabTransfer, Patient } from '../../types';
-
-/**
- * LabsTab - إدارة المعامل وعمليات الإحالة (Transfers)
- * - يعرض قائمة المعامل المسجلة
- * - يتيح إنشاء معمل جديد
- * - يتيح إنشاء تحويل (إرسال عينة) إلى معمل محدد
- * - يتيح تعديل حالة التحويل (in_progress, completed, rejected)
- */
 
 export default function LabsTab() {
   const { clinicId } = useAuth();
@@ -23,12 +16,11 @@ export default function LabsTab() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // form state لإضافة معمل
   const [showLabForm, setShowLabForm] = useState(false);
   const [labForm, setLabForm] = useState({ name: '', address: '', phone: '', email: '', specializations: '' });
   const [labErrors, setLabErrors] = useState<Record<string, string>>({});
+  const [savingLab, setSavingLab] = useState(false);
 
-  // transfers modal و form
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null);
   const [showTransfersModal, setShowTransfersModal] = useState(false);
   const [transferForm, setTransferForm] = useState({
@@ -40,18 +32,18 @@ export default function LabsTab() {
     notes: '',
   });
   const [transferErrors, setTransferErrors] = useState<Record<string, string>>({});
+  const [savingTransfer, setSavingTransfer] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!clinicId) { setLoading(false); return; }
     setLoading(true);
     try {
-      // getLabs / getLabTransfers currently return synchronous arrays, but awaiting is safe
       const labsList = await getLabs(clinicId);
       const transfersList = await getLabTransfers(clinicId);
       const patientsList = await getPatients(clinicId);
-      setLabs(labsList);
-      setTransfers(transfersList);
-      setPatients(patientsList);
+      setLabs(Array.isArray(labsList) ? labsList : []);
+      setTransfers(Array.isArray(transfersList) ? transfersList : []);
+      setPatients(Array.isArray(patientsList) ? patientsList : []);
     } catch (err) {
       console.error('Failed to load labs data', err);
     } finally {
@@ -61,7 +53,6 @@ export default function LabsTab() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // --- Lab form validation & submit ---
   const validateLab = () => {
     const e: Record<string, string> = {};
     if (!labForm.name || labForm.name.trim().length < 2) e.name = 'اسم المعمل مطلوب';
@@ -74,6 +65,7 @@ export default function LabsTab() {
     ev?.preventDefault();
     if (!clinicId) return;
     if (!validateLab()) return;
+    setSavingLab(true);
     try {
       await addLab({
         clinicId,
@@ -88,7 +80,9 @@ export default function LabsTab() {
       await fetchData();
     } catch (err) {
       console.error('addLab error', err);
-      alert('حدث خطأ أثناء إضافة المعمل');
+      alert('حدث خطأ أثناء إضافة المعمل — تفقد Console للمزيد');
+    } finally {
+      setSavingLab(false);
     }
   };
 
@@ -104,7 +98,6 @@ export default function LabsTab() {
     }
   };
 
-  // --- Transfers ---
   const openTransfersFor = (lab: Lab) => {
     setSelectedLab(lab);
     setShowTransfersModal(true);
@@ -131,6 +124,7 @@ export default function LabsTab() {
     ev?.preventDefault();
     if (!clinicId || !selectedLab) return;
     if (!validateTransfer()) return;
+    setSavingTransfer(true);
     try {
       await addLabTransfer({
         clinicId,
@@ -144,14 +138,14 @@ export default function LabsTab() {
         expectedReturnDate: transferForm.expectedReturnDate || undefined,
         status: 'pending',
         notes: transferForm.notes || undefined,
-        createdBy: '', // optional: fill with current user id if available
+        createdBy: '', // optional
       });
       await fetchData();
-      // keep modal open to show new transfer, or close:
-      // setShowTransfersModal(false);
     } catch (err) {
       console.error('addLabTransfer error', err);
       alert('فشل إنشاء تحويل المعمل');
+    } finally {
+      setSavingTransfer(false);
     }
   };
 
@@ -178,7 +172,6 @@ export default function LabsTab() {
     }
   };
 
-  // helper لإظهار حالة بنص عربي
   const statusLabel = (s: LabTransfer['status']) => ({
     pending: 'قيد الانتظار',
     in_progress: 'قيد التنفيذ',
@@ -232,7 +225,9 @@ export default function LabsTab() {
           </div>
 
           <div className="flex gap-2 justify-end">
-            <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm">حفظ المعمل</button>
+            <button type="submit" disabled={savingLab} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm">
+              {savingLab ? 'جارٍ الحفظ...' : 'حفظ المعمل'}
+            </button>
             <button type="button" onClick={() => setShowLabForm(false)} className="bg-slate-200 px-4 py-2 rounded-xl text-sm">إلغاء</button>
           </div>
         </form>
@@ -274,12 +269,11 @@ export default function LabsTab() {
                 <p className="text-xs text-slate-500">إدارة التحويلات وإرسال العينات</p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowTransfersModal(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+                <button onClick={() => { setShowTransfersModal(false); setSelectedLab(null); }} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
               </div>
             </div>
 
             <div className="p-5 space-y-4">
-              {/* Transfer form */}
               <form onSubmit={handleAddTransfer} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">المريض</label>
@@ -317,12 +311,12 @@ export default function LabsTab() {
                 </div>
 
                 <div className="sm:col-span-3 flex gap-2 justify-end">
-                  <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm">إنشاء تحويل</button>
-                  <button type="button" onClick={() => { setShowTransfersModal(false); setSelectedLab(null); }} className="bg-slate-200 px-4 py-2 rounded-xl text-sm">إغلاق</button>
+                  <button type="submit" disabled={savingTransfer} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm">
+                    {savingTransfer ? 'جارٍ الإرسال...' : 'إنشاء تحويل'}
+                  </button>
                 </div>
               </form>
 
-              {/* Transfers list */}
               <div>
                 <h4 className="text-sm font-semibold text-slate-700 mb-2">قائمة التحويلات</h4>
                 <div className="space-y-2">
@@ -338,15 +332,9 @@ export default function LabsTab() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs px-2 py-1 rounded-xl bg-slate-100 text-slate-600">{statusLabel(t.status)}</span>
-                        {t.status === 'pending' && (
-                          <button onClick={() => handleUpdateTransferStatus(t, 'in_progress')} className="text-xs bg-amber-500 text-white px-3 py-1 rounded-xl">ابدأ</button>
-                        )}
-                        {t.status === 'in_progress' && (
-                          <button onClick={() => handleUpdateTransferStatus(t, 'completed')} className="text-xs bg-emerald-500 text-white px-3 py-1 rounded-xl">تم</button>
-                        )}
-                        {t.status !== 'rejected' && (
-                          <button onClick={() => handleUpdateTransferStatus(t, 'rejected')} className="text-xs bg-red-500 text-white px-3 py-1 rounded-xl">رفض</button>
-                        )}
+                        {t.status === 'pending' && <button onClick={() => handleUpdateTransferStatus(t, 'in_progress')} className="text-xs bg-amber-500 text-white px-3 py-1 rounded-xl">ابدأ</button>}
+                        {t.status === 'in_progress' && <button onClick={() => handleUpdateTransferStatus(t, 'completed')} className="text-xs bg-emerald-500 text-white px-3 py-1 rounded-xl">تم</button>}
+                        {t.status !== 'rejected' && <button onClick={() => handleUpdateTransferStatus(t, 'rejected')} className="text-xs bg-red-500 text-white px-3 py-1 rounded-xl">رفض</button>}
                         <button onClick={() => handleDeleteTransfer(t.id)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
