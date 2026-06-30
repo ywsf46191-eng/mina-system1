@@ -11,13 +11,15 @@ import WarehouseTab from './WarehouseTab';
 import AccountingTab from './AccountingTab';
 import StatisticsTab from './StatisticsTab';
 import AppearanceTab from './AppearanceTab';
+import LabsTab from './LabsTab';
+import { RadiologyPanel } from '../shared/RadiologyPanel';
 import {
   Search, Users, TrendingUp, Calendar, ChevronRight, ChevronLeft,
-  UserCog, Stethoscope, Package, Calculator, BarChart2, Image,
+  UserCog, Stethoscope, Package, Calculator, BarChart2, Image, FlaskConical, ScanLine,
 } from 'lucide-react';
 import type { Patient, DentalChartState, Payment } from '../../types';
 
-type TopTab = 'patients' | 'secretaries' | 'doctors' | 'warehouse' | 'accounting' | 'statistics' | 'appearance';
+type TopTab = 'patients' | 'secretaries' | 'doctors' | 'warehouse' | 'accounting' | 'statistics' | 'appearance' | 'labs';
 
 function StatCard({ label, value, color, bg }: { label: string; value: string | number; color: string; bg: string }) {
   return (
@@ -33,7 +35,7 @@ export default function DoctorDashboard() {
   const { patients, loading, error, editPatient } = usePatients(clinicId);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'chart' | 'finance' | 'appointment'>('chart');
+  const [activeTab, setActiveTab] = useState<'chart' | 'finance' | 'appointment' | 'radiology'>('chart');
   const [topTab, setTopTab] = useState<TopTab>('patients');
   const [payments, setPayments] = useState<Payment[]>([]);
 
@@ -94,6 +96,7 @@ export default function DoctorDashboard() {
     { id: 'accounting', label: 'المحاسبة', icon: <Calculator className="w-3.5 h-3.5" /> },
     { id: 'statistics', label: 'الإحصائيات', icon: <BarChart2 className="w-3.5 h-3.5" /> },
     { id: 'appearance', label: 'المظهر', icon: <Image className="w-3.5 h-3.5" /> },
+    { id: 'labs', label: 'المعامل', icon: <FlaskConical className="w-3.5 h-3.5" /> },
   ];
   const topTabs = allTopTabs.filter((t) => canSeeTab(t.id));
 
@@ -231,16 +234,17 @@ export default function DoctorDashboard() {
                         )}
                       </div>
 
-                      <div className="flex gap-1 mt-4 bg-slate-200 dark:bg-slate-600 rounded-xl p-1">
+                      <div className="flex gap-1 mt-4 bg-slate-200 dark:bg-slate-600 rounded-xl p-1 overflow-x-auto">
                         {[
                           { id: 'chart' as const, label: 'رسم الأسنان', icon: '🦷' },
                           { id: 'finance' as const, label: 'المالية', icon: '💰' },
                           { id: 'appointment' as const, label: 'الموعد', icon: '📅' },
+                          { id: 'radiology' as const, label: 'الأشعة', icon: '🖼️' },
                         ].map((tab) => (
                           <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition whitespace-nowrap shrink-0 ${
                               activeTab === tab.id
                                 ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
                                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -267,6 +271,15 @@ export default function DoctorDashboard() {
                             <h3 className="font-semibold text-slate-700 dark:text-slate-200 text-sm">الموعد القادم</h3>
                           </div>
                           <AppointmentScheduler patient={selectedPatient} onUpdated={handlePatientUpdate} />
+                        </>
+                      )}
+                      {activeTab === 'radiology' && (
+                        <>
+                          <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-600">
+                            <ScanLine className="w-4 h-4 text-blue-600" />
+                            <h3 className="font-semibold text-slate-700 dark:text-slate-200 text-sm">الصور الشعاعية</h3>
+                          </div>
+                          <RadiologyPanel patientId={selectedPatient.id} />
                         </>
                       )}
                     </div>
@@ -299,6 +312,9 @@ export default function DoctorDashboard() {
 
           {/* ── Appearance tab ── */}
           {topTab === 'appearance' && <AppearanceTab />}
+
+          {/* ── Labs tab ── */}
+          {topTab === 'labs' && <LabsTab />}
         </div>
       </div>
     </div>

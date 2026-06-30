@@ -20,10 +20,10 @@ import type {
   Patient, UserProfile, Secretary, DoctorRecord,
   Salary, Bill, BillType, BillStatus, Payment,
   WarehouseItem, WarehouseItemType, ClinicSettings, Branch,
-  SmsLogEntry,
+  SmsLogEntry, Lab, LabTransfer, RadiologyImage,
 } from '../types';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────
 
 function uid() { return crypto.randomUUID(); }
 function now() { return new Date().toISOString(); }
@@ -47,7 +47,7 @@ async function remove(col: string, id: string): Promise<void> {
   await deleteDoc(doc(db, col, id));
 }
 
-// ─── init ────────────────────────────────────────────────────────────────────
+// ─── init ───────────────────────────────────────────────────────────
 
 export async function initStore(): Promise<void> {
   // Seed superadmin if not present
@@ -66,7 +66,7 @@ export async function initStore(): Promise<void> {
   }
 }
 
-// ─── users ────────────────────────────────────────────────────────────────────
+// ─── users ───────────────────────────────────────────────────────────
 
 export async function getUsers(): Promise<UserProfile[]> {
   return getAll<UserProfile>('users');
@@ -111,7 +111,7 @@ export async function createUserProfile(
   await upsert('users', newUid, user);
 }
 
-// ─── branches ────────────────────────────────────────────────────────────────
+// ─── branches ─────────────────────────────────────────────────────────
 
 export async function getBranches(): Promise<Branch[]> {
   return getAll<Branch>('branches');
@@ -143,7 +143,7 @@ export async function createBranchRecord(data: {
   return branch;
 }
 
-// ─── patients ─────────────────────────────────────────────────────────────────
+// ─── patients ─────────────────────────────────────────────────────────
 
 export async function getPatients(clinicId: string): Promise<Patient[]> {
   if (!clinicId) return [];
@@ -165,7 +165,7 @@ export async function deletePatient(id: string): Promise<void> {
   await remove('patients', id);
 }
 
-// ─── secretaries ─────────────────────────────────────────────────────────────
+// ─── secretaries ────────────────────────────────────────────────────────
 
 export async function getSecretaries(clinicId: string): Promise<Secretary[]> {
   const users = await getFiltered<UserProfile>('users', 'clinicId', clinicId);
@@ -178,7 +178,7 @@ export async function deleteSecretary(id: string): Promise<void> {
   await deleteUser(id);
 }
 
-// ─── doctors ──────────────────────────────────────────────────────────────────
+// ─── doctors ──────────────────────────────────────────────────────────
 
 export async function getDoctors(clinicId: string): Promise<DoctorRecord[]> {
   const users = await getFiltered<UserProfile>('users', 'clinicId', clinicId);
@@ -191,7 +191,7 @@ export async function deleteDoctor(id: string): Promise<void> {
   await deleteUser(id);
 }
 
-// ─── salaries ─────────────────────────────────────────────────────────────────
+// ─── salaries ─────────────────────────────────────────────────────────
 
 export async function getSalaries(clinicId: string): Promise<Salary[]> {
   return getFiltered<Salary>('salaries', 'clinicId', clinicId);
@@ -208,7 +208,7 @@ export async function deleteSalary(id: string, _clinicId: string): Promise<void>
   await remove('salaries', id);
 }
 
-// ─── bills ────────────────────────────────────────────────────────────────────
+// ─── bills ──────────────────────────────────────────────────────────
 
 export async function getBills(clinicId: string): Promise<Bill[]> {
   return getFiltered<Bill>('bills', 'clinicId', clinicId);
@@ -225,7 +225,7 @@ export async function deleteBill(id: string, _clinicId: string): Promise<void> {
   await remove('bills', id);
 }
 
-// ─── payments ─────────────────────────────────────────────────────────────────
+// ─── payments ─────────────────────────────────────────────────────────
 
 export async function getPayments(clinicId: string): Promise<Payment[]> {
   return getFiltered<Payment>('payments', 'clinicId', clinicId);
@@ -242,7 +242,7 @@ export async function deletePayment(id: string, _clinicId: string): Promise<void
   await remove('payments', id);
 }
 
-// ─── warehouse ────────────────────────────────────────────────────────────────
+// ─── warehouse ─────────────────────────────────────────────────────────
 
 export async function getWarehouseItems(clinicId: string): Promise<WarehouseItem[]> {
   return getFiltered<WarehouseItem>('warehouse', 'clinicId', clinicId);
@@ -263,7 +263,7 @@ export async function updateWarehouseItem(id: string, _clinicId: string, data: P
   await upsert('warehouse', id, data);
 }
 
-// ─── settings ─────────────────────────────────────────────────────────────────
+// ─── settings ─────────────────────────────────────────────────────────
 
 export async function getClinicSettings(clinicId: string): Promise<ClinicSettings> {
   const snap = await getDoc(doc(db, 'settings', clinicId));
@@ -275,7 +275,7 @@ export async function saveClinicSettings(clinicId: string, data: Partial<ClinicS
   await upsert('settings', clinicId, data);
 }
 
-// ─── SMS log ──────────────────────────────────────────────────────────────────
+// ─── SMS log ──────────────────────────────────────────────────────────
 
 export async function getSmsLog(clinicId: string): Promise<SmsLogEntry[]> {
   const entries = await getFiltered<SmsLogEntry>('smslog', 'clinicId', clinicId);
@@ -297,4 +297,143 @@ export async function clearSmsLog(clinicId: string): Promise<void> {
   const batch = writeBatch(db);
   entries.forEach((e) => batch.delete(doc(db, 'smslog', e.id)));
   await batch.commit();
+}
+
+// ─── labs ────────────────────────────────────────────────────────────
+
+export function getLabs(clinicId: string): Lab[] {
+  // For now, return empty array - will be populated by Firestore when setup
+  try {
+    const allLabs = localStorage.getItem('mina_labs') ? JSON.parse(localStorage.getItem('mina_labs') || '[]') : [];
+    return allLabs.filter((l: Lab) => l.clinicId === clinicId);
+  } catch {
+    return [];
+  }
+}
+
+export async function addLab(data: Omit<Lab, 'id' | 'createdAt'>): Promise<Lab> {
+  const lab: Lab = {
+    ...data,
+    id: uid(),
+    createdAt: now(),
+  };
+  await upsert('labs', lab.id, lab);
+  // Also update localStorage for sync
+  try {
+    const allLabs = localStorage.getItem('mina_labs') ? JSON.parse(localStorage.getItem('mina_labs') || '[]') : [];
+    allLabs.push(lab);
+    localStorage.setItem('mina_labs', JSON.stringify(allLabs));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+  return lab;
+}
+
+export async function deleteLab(id: string, clinicId: string): Promise<void> {
+  await remove('labs', id);
+  // Also update localStorage
+  try {
+    const allLabs = localStorage.getItem('mina_labs') ? JSON.parse(localStorage.getItem('mina_labs') || '[]') : [];
+    const filtered = allLabs.filter((l: Lab) => !(l.id === id && l.clinicId === clinicId));
+    localStorage.setItem('mina_labs', JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+}
+
+// ─── lab transfers ───────────────────────────────────────────────────
+
+export function getLabTransfers(clinicId: string): LabTransfer[] {
+  try {
+    const allTransfers = localStorage.getItem('mina_lab_transfers') ? JSON.parse(localStorage.getItem('mina_lab_transfers') || '[]') : [];
+    return allTransfers.filter((t: LabTransfer) => t.clinicId === clinicId);
+  } catch {
+    return [];
+  }
+}
+
+export async function addLabTransfer(data: Omit<LabTransfer, 'id' | 'createdAt'>): Promise<LabTransfer> {
+  const transfer: LabTransfer = {
+    ...data,
+    id: uid(),
+    createdAt: now(),
+  };
+  await upsert('labTransfers', transfer.id, transfer);
+  // Also update localStorage
+  try {
+    const allTransfers = localStorage.getItem('mina_lab_transfers') ? JSON.parse(localStorage.getItem('mina_lab_transfers') || '[]') : [];
+    allTransfers.push(transfer);
+    localStorage.setItem('mina_lab_transfers', JSON.stringify(allTransfers));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+  return transfer;
+}
+
+export async function updateLabTransfer(id: string, clinicId: string, data: Partial<LabTransfer>): Promise<void> {
+  await upsert('labTransfers', id, { ...data, updatedAt: now() });
+  // Also update localStorage
+  try {
+    const allTransfers = localStorage.getItem('mina_lab_transfers') ? JSON.parse(localStorage.getItem('mina_lab_transfers') || '[]') : [];
+    const index = allTransfers.findIndex((t: LabTransfer) => t.id === id && t.clinicId === clinicId);
+    if (index !== -1) {
+      allTransfers[index] = { ...allTransfers[index], ...data };
+      localStorage.setItem('mina_lab_transfers', JSON.stringify(allTransfers));
+    }
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+}
+
+export async function deleteLabTransfer(id: string, clinicId: string): Promise<void> {
+  await remove('labTransfers', id);
+  // Also update localStorage
+  try {
+    const allTransfers = localStorage.getItem('mina_lab_transfers') ? JSON.parse(localStorage.getItem('mina_lab_transfers') || '[]') : [];
+    const filtered = allTransfers.filter((t: LabTransfer) => !(t.id === id && t.clinicId === clinicId));
+    localStorage.setItem('mina_lab_transfers', JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+}
+
+// ─── radiology images ────────────────────────────────────────────────
+
+export function getRadiologyImages(clinicId: string, patientId: string): RadiologyImage[] {
+  try {
+    const allImages = localStorage.getItem('mina_radiology_images') ? JSON.parse(localStorage.getItem('mina_radiology_images') || '[]') : [];
+    return allImages.filter((img: RadiologyImage) => img.clinicId === clinicId && img.patientId === patientId);
+  } catch {
+    return [];
+  }
+}
+
+export async function addRadiologyImage(data: Omit<RadiologyImage, 'id' | 'createdAt'>): Promise<RadiologyImage> {
+  const image: RadiologyImage = {
+    ...data,
+    id: uid(),
+    createdAt: now(),
+  };
+  await upsert('radiologyImages', image.id, image);
+  // Also update localStorage
+  try {
+    const allImages = localStorage.getItem('mina_radiology_images') ? JSON.parse(localStorage.getItem('mina_radiology_images') || '[]') : [];
+    allImages.push(image);
+    localStorage.setItem('mina_radiology_images', JSON.stringify(allImages));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
+  return image;
+}
+
+export async function deleteRadiologyImage(id: string, clinicId: string): Promise<void> {
+  await remove('radiologyImages', id);
+  // Also update localStorage
+  try {
+    const allImages = localStorage.getItem('mina_radiology_images') ? JSON.parse(localStorage.getItem('mina_radiology_images') || '[]') : [];
+    const filtered = allImages.filter((img: RadiologyImage) => !(img.id === id && img.clinicId === clinicId));
+    localStorage.setItem('mina_radiology_images', JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Failed to update localStorage:', e);
+  }
 }
