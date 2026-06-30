@@ -4,7 +4,6 @@ const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch'); // v2
-const twilio = require('twilio');
 const { v4: uuidv4 } = require('uuid');
 
 admin.initializeApp();
@@ -13,6 +12,7 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '100kb' }));
 
+// Verify Firebase ID token middleware
 async function verifyIdToken(req, res, next) {
   const authHeader = req.get('Authorization') || '';
   const match = authHeader.match(/^Bearer (.+)$/);
@@ -30,7 +30,7 @@ async function verifyIdToken(req, res, next) {
   }
 }
 
-async function persistSmsLog({ clinicId, to, message, patientId, status, notes, createdBy }) {
+async function persistSmsLog({ clinicId, to, message, patientId, status, notes, createdBy, providerResult }) {
   const docId = uuidv4();
   const payload = {
     id: docId,
@@ -40,6 +40,7 @@ async function persistSmsLog({ clinicId, to, message, patientId, status, notes, 
     patientId: patientId || null,
     status: status || 'queued',
     notes: notes || '',
+    providerResult: providerResult || null,
     createdBy: createdBy || '',
     createdAt: new Date().toISOString(),
   };
@@ -47,94 +48,105 @@ async function persistSmsLog({ clinicId, to, message, patientId, status, notes, 
   return payload;
 }
 
+// POST /sendSms (client calls this function)
 app.post('/sendSms', verifyIdToken, async (req, res) => {
   try {
     const { clinicId, to, message, patientId } = req.body;
     if (!to || !message) {
-      return res.status(400).json({ success: false, message: 'Missing "to" or "message"' });
+      return res.status(400).json({ success: false, message: 'Missing "to" or "message" in request body' });
     }
 
     const createdBy = req.user?.uid || '';
+    // create queued log
     const log = await persistSmsLog({ clinicId, to, message, patientId, status: 'queued', notes: '', createdBy });
 
     const cfg = functions.config();
-    const provider = (cfg.sms && cfg.sms.provider) || 'twilio';
+    const provider = (cfg.sms && cfg.sms.provider) || 'hotsms';
 
-    if (provider === 'twilio') {
-      const sid = cfg.sms.twilio.sid;
-      const token = cfg.sms.twilio.token;
-      const from = cfg.sms.twilio.from;
-      if (!sid || !token || !from) {
-        await admin.firestore().collection('smslog').doc(log.id).update({
-          status: 'failed',
-          notes: 'Twilio config missing',
-        });
-        return res.status(500).json({ success: false, message: 'Twilio not configured' });
-      }
-      try {
-        const client = twilio(sid, token);
-        const msg = await client.messages.create({ body: message, from, to });
-        await admin.firestore().collection('smslog').doc(log.id).update({
-          status: 'sent',
-          notes: `twilio_sid:${msg.sid}`,
-        });
-        return res.json({ success: true, id: log.id, provider: 'twilio', providerId: msg.sid });
-      } catch (err) {
-        console.error('Twilio send error', err);
-        await admin.firestore().collection('smslog').doc(log.id).update({
-          status: 'failed',
-          notes: `twilio_error:${err.message || String(err)}`,
-        });
-        return res.status(500).json({ success: false, message: 'Twilio send failed', error: err.message || String(err) });
-      }
-    }
+    // HOTSMS provider implementation
+    if (provider === 'hotsms') {
+      // You can provide either api_token or user_name+user_pass
+      const apiToken = cfg.sms.hotsms && cfg.sms.hotsms.api_token;
+      const userName = cfg.sms.hotsms && cfg.sms.hotsms.user_name;
+      const userPass = cfg.sms.hotsms && cfg.sms.hotsms.user_pass;
+      const sender = (cfg.sms.hotsms && cfg.sms.hotsms.sender) || 'SMS';
+      const usePost = !!(cfg.sms.hotsms && cfg.sms.hotsms.use_post); // optional flag
 
-    if (provider === 'http') {
-      const url = cfg.sms.provider_url;
-      const apiKey = cfg.sms.provider_key;
-      if (!url) {
+      // build HOTSMS URL and params
+      const base = (cfg.sms.hotsms && cfg.sms.hotsms.base_url) || 'http://hotsms.ps/sendbulksms.php';
+      const mobile = to; // ensure number format expected by HOTSMS (e.g. 9725...)
+      const text = String(message);
+
+      // prefer api_token if present
+      const params = new URLSearchParams();
+      if (apiToken) params.append('api_token', apiToken);
+      else if (userName && userPass) {
+        params.append('user_name', userName);
+        params.append('user_pass', userPass);
+      } else {
         await admin.firestore().collection('smslog').doc(log.id).update({
           status: 'failed',
-          notes: 'HTTP provider URL missing',
+          notes: 'HOTSMS credentials missing in functions config',
         });
-        return res.status(500).json({ success: false, message: 'HTTP provider not configured' });
+        return res.status(500).json({ success: false, message: 'HOTSMS not configured' });
       }
+      params.append('sender', sender);
+      params.append('mobile', mobile);
+      params.append('type', '0'); // type param per HOTSMS docs (0 = text?)
+      params.append('text', text);
+
       try {
-        const headers = { 'Content-Type': 'application/json' };
-        if (apiKey) headers['X-API-KEY'] = apiKey;
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ to, message, clinicId, patientId }),
-        });
-        const text = await resp.text();
-        if (!resp.ok) {
+        let resp;
+        if (usePost) {
+          resp = await fetch(base, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString(),
+          });
+        } else {
+          // GET
+          const url = `${base}?${params.toString()}`;
+          resp = await fetch(url, { method: 'GET' });
+        }
+
+        const bodyText = await resp.text().catch(() => '');
+        // HOTSMS returns success code like "1001" or "1001_MessageID..." per screenshots
+        const success = /(^|_|\b)1001\b/.test(bodyText) || bodyText.includes('1001');
+        if (resp.ok && success) {
+          // try to extract message id if present
+          const match = bodyText.match(/1001[_\-]?([A-Za-z0-9]+)/);
+          const providerId = match ? match[1] : null;
+          await admin.firestore().collection('smslog').doc(log.id).update({
+            status: 'sent',
+            notes: 'sent via HOTSMS',
+            providerResult: bodyText,
+          });
+          return res.json({ success: true, id: log.id, provider: 'hotsms', providerResponse: bodyText, providerId });
+        } else {
+          // treat as failure, include provider response
           await admin.firestore().collection('smslog').doc(log.id).update({
             status: 'failed',
-            notes: `provider_http_status:${resp.status} body:${text}`,
+            notes: `hotsms_response:${bodyText}`,
+            providerResult: bodyText,
           });
-          return res.status(500).json({ success: false, message: 'Provider returned non-OK', details: text });
+          return res.status(500).json({ success: false, message: 'HOTSMS returned error', providerResponse: bodyText });
         }
-        await admin.firestore().collection('smslog').doc(log.id).update({
-          status: 'sent',
-          notes: `provider_response:${text}`,
-        });
-        return res.json({ success: true, id: log.id, provider: 'http', providerResponse: text });
       } catch (err) {
-        console.error('HTTP provider error', err);
+        console.error('HOTSMS send error', err);
         await admin.firestore().collection('smslog').doc(log.id).update({
           status: 'failed',
-          notes: `provider_error:${err.message || String(err)}`,
+          notes: `hotsms_error:${err.message || String(err)}`,
         });
-        return res.status(500).json({ success: false, message: 'Provider send failed', error: err.message || String(err) });
+        return res.status(500).json({ success: false, message: 'HOTSMS send failed', error: err.message || String(err) });
       }
     }
 
+    // fallback: unknown provider
     await admin.firestore().collection('smslog').doc(log.id).update({
       status: 'failed',
       notes: `unknown_provider:${provider}`,
     });
-    return res.status(500).json({ success: false, message: `Unknown provider: ${provider}` });
+    return res.status(500).json({ success: false, message: `Unknown SMS provider: ${provider}` });
   } catch (err) {
     console.error('sendSms unexpected error', err);
     return res.status(500).json({ success: false, message: 'Internal error', error: err.message || String(err) });
