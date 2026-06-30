@@ -24,7 +24,9 @@ function createWindow() {
     win.loadURL('http://localhost:5173');
     win.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    // Use app.getAppPath() so the packaged app always finds the correct path
+    const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+    win.loadFile(indexPath);
   }
 
   // Open external links in browser, not Electron
