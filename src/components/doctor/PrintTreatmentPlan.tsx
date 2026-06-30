@@ -1,4 +1,3 @@
-// src/components/doctor/PrintTreatmentPlan.tsx
 import { useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import { resolveVisualStatus } from '../../lib/teeth';
@@ -82,25 +81,106 @@ const STATUS_COLORS: Record<string, string> = {
   done: '#10b981',
 };
 
-function PrintToothBox({ display, state }: { display: number; state: ToothState | undefined }) {
+/** Helpers for matching / labels */
+function toothKeyFor(quadrantCode: string, display: number) {
+  const loc = QUADRANT_TO_LOCATION[quadrantCode];
+  return `${loc}_${display}`;
+}
+
+function findMatchingRowForKey(rows: any[], toothKey: string, display: number) {
+  // Match by exact key, key ending with _display, or simple display number
+  return rows.find((r) => {
+    if (!r) return false;
+    const t = r.toothNo ?? '';
+    if (!t) return false;
+    if (t === toothKey) return true;
+    if (t.endsWith(`_${display}`)) return true;
+    // if stored as simple '6' or '2', compare numeric
+    if (!t.includes('_') && Number(t) === display) return true;
+    // if chart keys include display number at end, already covered
+    return false;
+  });
+}
+
+function humanLabelForToothKey(toothKey: string) {
+  // toothKey like 'upper-right_6' or '6'
+  const parts = toothKey.split('_');
+  if (parts.length === 2) {
+    const loc = parts[0];
+    const num = parts[1];
+    const quadrant = QUADRANTS.find((q) => QUADRANT_TO_LOCATION[q.quadrant] === loc);
+    if (quadrant) return `${quadrant.label} — ${num}`;
+    return `${loc} — ${num}`;
+  }
+  return `سن ${toothKey}`;
+}
+
+/**
+ * PrintToothBox: uses inset box-shadow trick so printed output retains fill color
+ * and is more reliable across browsers even when "print background" option is disabled.
+ * Also optionally shows a small badge when there's an active treatment row for this tooth.
+ */
+function PrintToothBox({
+  display,
+  state,
+  toothKey,
+  treatmentRow,
+}: {
+  display: number;
+  state: ToothState | undefined;
+  toothKey: string;
+  treatmentRow?: any;
+}) {
   const status = resolveVisualStatus(state);
+  const color = STATUS_COLORS[status] ?? '#ffffff';
+
+  const boxStyle: React.CSSProperties = {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    border: '1.5px solid #94a3b8',
+    backgroundColor: color, // visible on screen
+    // inset trick forces a solid fill in many print engines
+    boxShadow: `inset 0 0 0 9999px ${color}`,
+    color: status === 'none' ? '#475569' : '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: 700,
+    position: 'relative',
+  };
+
+  const badgeStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 22,
+    padding: '2px 4px',
+    fontSize: 9,
+    fontWeight: 700,
+    borderRadius: 8,
+    color: '#fff',
+    background: '#1f2937',
+    boxShadow: `inset 0 0 0 9999px #1f2937`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  // Badge content: prefer sessions completed/total if available, else small marker
+  let badgeContent: string | null = null;
+  if (treatmentRow) {
+    const total = Number(treatmentRow.totalSessions ?? treatmentRow.totalSession ?? 0);
+    const completed = Array.isArray(treatmentRow.completedSessions) ? treatmentRow.completedSessions.length : Number(treatmentRow.completedSessions ?? 0) || 0;
+    if (total > 0) badgeContent = `${completed}/${total}`;
+    else badgeContent = 'علاج';
+  }
+
   return (
-    <div
-      style={{
-        width: 28,
-        height: 28,
-        borderRadius: 6,
-        border: '1.5px solid #94a3b8',
-        backgroundColor: STATUS_COLORS[status],
-        color: status === 'none' ? '#475569' : '#ffffff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 11,
-        fontWeight: 700,
-      }}
-    >
+    <div className="tooth-box" style={boxStyle}>
       {display}
+      {badgeContent && <div style={badgeStyle}>{badgeContent}</div>}
     </div>
   );
 }
@@ -140,6 +220,47 @@ export default function PrintTreatmentPlan({ patient }: Props) {
   const totalPaid = dentalRows.reduce((sum, r) => sum + Number(r.payment ?? 0), 0);
   const totalRemaining = totalPrice - totalPaid;
 
+  // Build a list of treatment rows and try to attach matching tooth keys
+  const treatments = dentalRows.map((r) => {
+    // normalize tooth key possibilities
+    const t = r.toothNo ?? '';
+    const matchedKeys: string[] = [];
+    if (t.includes('_')) {
+      matchedKeys.push(t);
+    } else if (t) {
+      // find keys in chartState that end with _<t>
+      const keys = Object.keys(chartState).filter((k) => k.endsWith(`_${t}`));
+      matchedKeys.push(...keys);
+      // also push simple number form
+      matchedKeys.push(t);
+    }
+    // If no match keys found, attempt to match by scanning QUADRANTS
+    if (matchedKeys.length === 0 && typeof r.toothNo === 'number') {
+      const num = String(r.toothNo);
+      const keys = Object.keys(chartState).filter((k) => k.endsWith(`_${num}`));
+      matchedKeys.push(...keys);
+    }
+
+    return { row: r, matchedKeys: Array.from(new Set(matchedKeys)) };
+  });
+
+  // Helper to find treatmentRow for a toothKey / display
+  function treatmentForToothKey(toothKey: string, display: number) {
+    // Prefer exact match, then endsWith matching, then numeric match
+    for (const t of treatments) {
+      if (t.matchedKeys.includes(toothKey)) return t.row;
+      if (t.matchedKeys.some((k) => k.endsWith(`_${display}`))) return t.row;
+      if (t.row.toothNo === String(display) || t.row.toothNo === display) return t.row;
+    }
+    return undefined;
+  }
+
+  // Build aggregated list for the "العلاجات الجارية" table (only rows with treatment info)
+  const activeTreatments = dentalRows.filter((r) => {
+    // treat as active if has price>0 or treatmentProcedure or totalSessions>0
+    return (Number(r.price ?? 0) > 0) || (r.treatmentProcedure && String(r.treatmentProcedure).trim() !== '') || (Number(r.totalSessions ?? 0) > 0);
+  });
+
   return (
     <>
       <button
@@ -153,7 +274,7 @@ export default function PrintTreatmentPlan({ patient }: Props) {
 
       {open && (
         <>
-          {/* زرار إغلاق ظاهر على الشاشة بس مش بيتطبع */}
+          {/* زر إغلاق ظاهر على الشاشة فقط (مش بيتطبع) */}
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -186,28 +307,36 @@ export default function PrintTreatmentPlan({ patient }: Props) {
                     <span style={{ textAlign: 'center', fontSize: 10, color: '#94a3b8', fontWeight: 700 }}>{QUADRANTS[1].label}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, paddingRight: 8, borderRight: '2px dashed #cbd5e1' }}>
-                      {QUADRANTS[0].teeth.map(({ fdi, display }) => (
-                        <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[0].quadrant)} />
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingRight: 8, borderRight: '2px dashed #cbd5e1' }}>
+                      {QUADRANTS[0].teeth.map(({ fdi, display }) => {
+                        const key = toothKeyFor(QUADRANTS[0].quadrant, display);
+                        const treatmentRow = treatmentForToothKey(key, display);
+                        return <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[0].quadrant)} toothKey={key} treatmentRow={treatmentRow} />;
+                      })}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 4, paddingLeft: 8 }}>
-                      {QUADRANTS[1].teeth.map(({ fdi, display }) => (
-                        <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[1].quadrant)} />
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, paddingLeft: 8 }}>
+                      {QUADRANTS[1].teeth.map(({ fdi, display }) => {
+                        const key = toothKeyFor(QUADRANTS[1].quadrant, display);
+                        const treatmentRow = treatmentForToothKey(key, display);
+                        return <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[1].quadrant)} toothKey={key} treatmentRow={treatmentRow} />;
+                      })}
                     </div>
                   </div>
                   <div style={{ borderTop: '2px dashed #cbd5e1', margin: '10px 0' }} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, paddingRight: 8, borderRight: '2px dashed #cbd5e1' }}>
-                      {QUADRANTS[2].teeth.map(({ fdi, display }) => (
-                        <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[2].quadrant)} />
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingRight: 8, borderRight: '2px dashed #cbd5e1' }}>
+                      {QUADRANTS[2].teeth.map(({ fdi, display }) => {
+                        const key = toothKeyFor(QUADRANTS[2].quadrant, display);
+                        const treatmentRow = treatmentForToothKey(key, display);
+                        return <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[2].quadrant)} toothKey={key} treatmentRow={treatmentRow} />;
+                      })}
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 4, paddingLeft: 8 }}>
-                      {QUADRANTS[3].teeth.map(({ fdi, display }) => (
-                        <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[3].quadrant)} />
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', gap: 8, paddingLeft: 8 }}>
+                      {QUADRANTS[3].teeth.map(({ fdi, display }) => {
+                        const key = toothKeyFor(QUADRANTS[3].quadrant, display);
+                        const treatmentRow = treatmentForToothKey(key, display);
+                        return <PrintToothBox key={fdi} display={display} state={getToothState(chartState, fdi, display, QUADRANTS[3].quadrant)} toothKey={key} treatmentRow={treatmentRow} />;
+                      })}
                     </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
@@ -257,6 +386,53 @@ export default function PrintTreatmentPlan({ patient }: Props) {
                   )}
                 </tbody>
               </table>
+
+              {/* العلاجات الجارية: جدول ملخص للأسنان التي لها إجراء/جلسات */}
+              <h2 className="text-sm font-bold text-slate-700 mb-2">العلاجات الجارية</h2>
+              {activeTreatments.length === 0 ? (
+                <p className="text-sm text-slate-400 mb-6">لا توجد علاجات جارية</p>
+              ) : (
+                <table className="w-full text-xs border-collapse mb-6">
+                  <thead>
+                    <tr className="bg-slate-100">
+                      <th className="border border-slate-300 px-2 py-1.5">السن</th>
+                      <th className="border border-slate-300 px-2 py-1.5">الإجراء</th>
+                      <th className="border border-slate-300 px-2 py-1.5">الجلسات (مكتملة/مجموع)</th>
+                      <th className="border border-slate-300 px-2 py-1.5">السعر</th>
+                      <th className="border border-slate-300 px-2 py-1.5">مدفوع</th>
+                      <th className="border border-slate-300 px-2 py-1.5">المتبقي</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeTreatments.map((r) => {
+                      const total = Number(r.totalSessions ?? 0);
+                      const completed = Array.isArray(r.completedSessions)
+                        ? r.completedSessions.length
+                        : Number(r.completedSessions ?? 0) || 0;
+                      // derive a readable tooth label if possible
+                      let readable = String(r.toothNo ?? '');
+                      if (!readable.includes('_')) {
+                        // try find a chart key matching that number
+                        const key = Object.keys(chartState).find((k) => k.endsWith(`_${readable}`));
+                        if (key) readable = humanLabelForToothKey(key);
+                      } else {
+                        readable = humanLabelForToothKey(String(r.toothNo));
+                      }
+
+                      return (
+                        <tr key={r.id}>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">{readable}</td>
+                          <td className="border border-slate-300 px-2 py-1.5">{r.treatmentProcedure || '—'}</td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">{completed} / {total || '—'}</td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">₪ {Number(r.price ?? 0).toLocaleString('ar')}</td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">₪ {Number(r.payment ?? 0).toLocaleString('ar')}</td>
+                          <td className="border border-slate-300 px-2 py-1.5 text-center">₪ {Number(r.remainingAmount ?? 0).toLocaleString('ar')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
 
               {/* الملخص المالي */}
               <h2 className="text-sm font-bold text-slate-700 mb-2">الملخص المالي</h2>
@@ -310,14 +486,28 @@ export default function PrintTreatmentPlan({ patient }: Props) {
         </>
       )}
 
-      {/* CSS الطباعة: بيخفي كل حاجة في الصفحة عدا منطقة الطباعة */}
+      {/* CSS الطباعة: طلب طباعة الألوان وحيلة box-shadow للملء */}
       <style>{`
         @media print {
+          /* اطلب من المتصفح طباعة الألوان بدقة */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          /* اخفِ باقي واجهة التطبيق وأظهر منطقة الطباعة فقط */
           body * { visibility: hidden; }
           .print-treatment-plan, .print-treatment-plan * { visibility: visible; }
           .print-treatment-plan { position: absolute; inset: 0; width: 100%; }
           .print-page { page-break-after: always; }
           .print-page:last-child { page-break-after: auto; }
+        }
+
+        /* تأكيد أن صناديق الأسنان تستخدم نفس الضبط في المعاينة والشاشة */
+        .tooth-box {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
         }
       `}</style>
     </>
