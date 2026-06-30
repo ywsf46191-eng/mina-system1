@@ -7,7 +7,7 @@ import { getClinicSettings } from '../../firebase/firestoreService';
 import {
   Stethoscope, LogOut, LayoutDashboard, Users, Sun, Moon, CreditCard,
   Building2, Phone, UserCog, Package, Calculator, BarChart2, ImageIcon,
-  ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare,
+  ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare, Tooth,
 } from 'lucide-react';
 
 interface LayoutProps { children: ReactNode; title?: string; }
@@ -112,8 +112,8 @@ export function Layout({ children }: LayoutProps) {
                 <p className="text-xs font-black tracking-widest text-blue-600 leading-none">MINA</p>
                 <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-widest leading-none mt-0.5">SYSTEM</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-md">
-                <span className="text-white text-lg font-bold">M</span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center shadow-md">
+                <Tooth className="text-white w-6 h-6" />
               </div>
             </div>
             {userProfile && (
