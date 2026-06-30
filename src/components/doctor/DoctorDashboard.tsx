@@ -13,6 +13,7 @@ import StatisticsTab from './StatisticsTab';
 import AppearanceTab from './AppearanceTab';
 import LabsTab from './LabsTab';
 import { RadiologyPanel } from '../shared/RadiologyPanel';
+import PrintTreatmentPlan from './PrintTreatmentPlan';
 import {
   Search, Users, TrendingUp, Calendar, ChevronRight, ChevronLeft,
   UserCog, Stethoscope, Package, Calculator, BarChart2, Image, FlaskConical, ScanLine,
@@ -223,17 +224,26 @@ export default function DoctorDashboard() {
                             </p>
                           )}
                         </div>
-                        {filtered.length > 1 && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400">{currentIndex + 1} / {filtered.length}</span>
-                            <button onClick={() => navigatePatient('next')} className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 transition" title="التالي">
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => navigatePatient('prev')} className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 transition" title="السابق">
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {filtered.length > 1 && (
+                            <>
+                              <span className="text-xs text-slate-400">{currentIndex + 1} / {filtered.length}</span>
+                              <button onClick={() => navigatePatient('next')} className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 transition" title="التالي">
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => navigatePatient('prev')} className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-500 transition" title="السابق">
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+
+                          {/* زر طباعة الخطة — يظهر عندما يكون هناك مريض محدد */}
+                          {selectedPatient && (
+                            <div className="mr-3">
+                              <PrintTreatmentPlan patient={selectedPatient} />
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex gap-1 mt-4 bg-slate-200 dark:bg-slate-600 rounded-xl p-1 overflow-x-auto">
