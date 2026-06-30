@@ -40,7 +40,9 @@ export default function DoctorDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
-    setPayments(getPayments(clinicId));
+    let active = true;
+    getPayments(clinicId).then((p) => { if (active) setPayments(p); });
+    return () => { active = false; };
   }, [clinicId, patients]);
 
   const filtered = patients.filter(
