@@ -1,4 +1,4 @@
-export type UserRole = 'superadmin' | 'branch_manager' | 'doctor' | 'secretary';
+export type UserRole = 'superadmin' | 'branch_manager' | 'doctor' | 'secretary' | 'doctor_secretary';
 export type ToothStatus = 'none' | 'treatment' | 'done';
 export type BillType = 'electricity' | 'water' | 'rent' | 'other';
 export type BillStatus = 'paid' | 'partial' | 'unpaid';
