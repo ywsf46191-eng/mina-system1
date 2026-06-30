@@ -336,7 +336,8 @@ export async function sendSms(
 
   try {
     // Replace with your real Cloud Function URL after deployment
-    const SMS_API_URL = 'https://us-central1-<project-id>.cloudfunctions.net/sendSms';
+   const SMS_API_URL =
+'https://us-central1-mina-system-23af8.cloudfunctions.net/sendSms';
 
     // Prepare headers and try to attach Firebase ID token
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
