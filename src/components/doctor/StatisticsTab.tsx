@@ -29,7 +29,7 @@ export default function StatisticsTab() {
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    if (!clinicId) return;
+    if (!clinicId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [p, pay, w, sal, bil] = await Promise.all([
