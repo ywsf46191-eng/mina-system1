@@ -103,7 +103,7 @@ function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
 }
 
 export default function AddPatientForm({ onSuccess }: Props) {
-  const { clinicId } = useAuth();
+  const { clinicId, currentUser } = useAuth();
   const [saved, setSaved] = useState(false);
 
   const {
@@ -184,19 +184,23 @@ export default function AddPatientForm({ onSuccess }: Props) {
     });
 
     // build dentalChart
+    // ملاحظة: لازم نتجنب أي قيمة undefined هنا لأن Firestore بيرفضها،
+    // فبدل undefined بنستخدم قيم افتراضية محايدة (null / '' / [] / false)
     const dentalChart: Record<string, ToothState> = {};
     processedDentalRows.forEach((r: any) => {
       const key = `${r.location}_${r.toothNo}`;
       const sessionsArray = Array.isArray(r.completedSessions) ? r.completedSessions : [];
+      const status = (r.payment >= r.price && r.price > 0) ? 'done' : (r.price > 0 ? 'treatment' : 'none');
+
       dentalChart[key] = {
         diagnosis: r.diagnosis ?? '',
         amount: r.price ?? 0,
-        treatmentStatus: (r.payment >= r.price && r.price > 0) ? 'done' : (r.price > 0 ? 'treatment' : 'none'),
-        totalSessions: r.totalSessions > 0 ? r.totalSessions : undefined,
-        completedSessions: sessionsArray.length > 0 ? sessionsArray : undefined,
-        sessionNotes: r.sessionNotes ? { last: r.sessionNotes } : undefined,
+        treatmentStatus: status,
+        totalSessions: r.totalSessions > 0 ? r.totalSessions : null,
+        completedSessions: sessionsArray.length > 0 ? sessionsArray : [],
+        sessionNotes: r.sessionNotes ? { last: r.sessionNotes } : null,
         notes: r.treatmentProcedure ?? '',
-        status: (r.payment >= r.price && r.price > 0) ? 'done' : undefined,
+        status: status === 'done' ? 'done' : null,
         workedOn: r.price > 0 || Boolean(r.diagnosis || r.treatmentProcedure),
       } as ToothState;
     });
@@ -228,8 +232,11 @@ export default function AddPatientForm({ onSuccess }: Props) {
       dentalChart,
       nextAppointmentDate: processedDentalRows.find((r: any) => r.nextAppointmentDate)?.nextAppointmentDate ?? '',
       nextAppointmentTime: '',
-      lastEditedBy: undefined,
-      lastEditedAt: undefined,
+      // تم حذف lastEditedBy / lastEditedAt من هنا نهائيًا — كانت undefined وده يسبب رفض Firestore.
+      // لو حابب تسجّل آخر شخص عدّل الملف، الأفضل إضافتها داخل createPatient نفسها
+      // باستخدام currentUser?.uid بدل ما تُترك فاضية هنا، مثال:
+      // lastEditedBy: currentUser?.uid ?? null,
+      // lastEditedAt: new Date().toISOString(),
       createdAt: '',
       updatedAt: '',
     };
