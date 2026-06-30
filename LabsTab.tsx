@@ -42,12 +42,14 @@ export default function LabsTab() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate() || !clinicId) return;
-    addLab({
+    // ملاحظة: لازم نستخدم '' بدل undefined للحقول الفاضية، لأن Firestore بيرفض
+    // أي قيمة undefined صراحة (نفس مشكلة lastEditedBy في فورم المريض سابقًا).
+    await addLab({
       clinicId,
       name: form.name,
-      address: form.address || undefined,
-      phone: form.phone || undefined,
-      email: form.email || undefined,
+      address: form.address || '',
+      phone: form.phone || '',
+      email: form.email || '',
       specializations: form.specializations ? form.specializations.split(',').map(s => s.trim()) : [],
     });
     setSuccessInfo({ name: form.name });
@@ -59,7 +61,7 @@ export default function LabsTab() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`حذف المعمل ${name}؟`)) return;
     if (!clinicId) return;
-    deleteLab(id, clinicId);
+    await deleteLab(id, clinicId);
     await fetchData();
   };
 
