@@ -105,20 +105,22 @@ export function DentalChart({ chartState, onChange }: Props) {
   // Try to resolve the ToothState for a displayed tooth (FDI). Support two storage shapes:
   // 1) chartState keyed by FDI (existing doctor saves), e.g. '11', '12', ...
   // 2) chartState keyed by secretary convention 'location_toothNo' e.g. 'upper-right_1'
+  //
+  // ملاحظة مهمة: تم حذف أي "تخمين" (loose match) كان بيدور على أي مفتاح بينتهي بنفس
+  // رقم السن بغض النظر عن الفك، لأن ده كان بيخلي مثلاً السن 4 في كل الأفكاك الأربعة
+  // ياخد نفس حالة العلاج لو سن واحد بس اتسجل (مثال: "upper-right_4" كان بيتطابق غلط
+  // مع "upper-left_4" و"lower-right_4" و"lower-left_4"). المطابقة دلوقتي محصورة فقط
+  // بمفتاح الـ FDI الصريح أو بمفتاح location_display الخاص بنفس الفك بالظبط.
   const getState = (fdi: string, display: number, quadrantCode: string): ToothState | undefined => {
     // prefer explicit FDI key
     if (chartState[fdi]) return chartState[fdi];
 
-    // fallback to secretary key by quadrant + display number
+    // fallback to secretary key by quadrant + display number (exact match only)
     const loc = QUADRANT_TO_LOCATION[quadrantCode];
     if (loc) {
       const key = `${loc}_${display}`;
       if (chartState[key]) return chartState[key];
     }
-
-    // last resort: try to find any entry whose key ends with `_${display}` (loose match)
-    const fallbackKey = Object.keys(chartState).find((k) => k.endsWith(`_${display}`));
-    if (fallbackKey) return chartState[fallbackKey];
 
     return undefined;
   };
