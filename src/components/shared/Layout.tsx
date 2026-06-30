@@ -7,7 +7,7 @@ import { getClinicSettings } from '../../firebase/firestoreService';
 import {
   Stethoscope, LogOut, LayoutDashboard, Users, Sun, Moon, CreditCard,
   Building2, Phone, UserCog, Package, Calculator, BarChart2, ImageIcon,
-  ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare,
+  FlaskConical, ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare,
 } from 'lucide-react';
 
 interface LayoutProps { children: ReactNode; title?: string; }
