@@ -1,6 +1,6 @@
 {
   "name": "clinic-management-system",
-  "version": "1.0.0",
+  "version": "1.0.88",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
