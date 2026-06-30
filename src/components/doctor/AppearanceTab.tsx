@@ -13,7 +13,7 @@ export default function AppearanceTab() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!clinicId) return;
+    if (!clinicId) { setLoading(false); return; }
     getClinicSettings(clinicId).then(s => {
       setBgImage(s.backgroundImage ?? '');
       setLoading(false);
