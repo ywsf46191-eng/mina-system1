@@ -294,30 +294,95 @@ export async function saveClinicSettings(clinicId: string, data: Partial<ClinicS
   await upsert('settings', clinicId, data);
 }
  
-// ─── SMS log ──────────────────────────────────────────────────────────
- 
+// ─── SMS log + resilient sendSms ───────────────────────────────────────
+
 export async function getSmsLog(clinicId: string): Promise<SmsLogEntry[]> {
   const entries = await getFiltered<SmsLogEntry>('smslog', 'clinicId', clinicId);
   return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
- 
+
 export async function addSmsLog(entry: Omit<SmsLogEntry, 'id' | 'createdAt'>): Promise<SmsLogEntry> {
   const e: SmsLogEntry = { ...entry, id: uid(), createdAt: now() };
   await upsert('smslog', e.id, e);
   return e;
 }
- 
+
 export async function deleteSmsLog(id: string, _clinicId: string): Promise<void> {
   await remove('smslog', id);
 }
- 
+
+/**
+ * Attempt sending an SMS via the backend endpoint; if the call fails,
+ * fallback to recording the SMS in the smslog (status='failed').
+ *
+ * Usage from UI:
+ *   await sendSms(clinicId, '+9725xxxxxxxx', 'نص الرسالة', patientId);
+ *
+ * The function returns the saved SmsLogEntry (with id + createdAt).
+ */
+export async function sendSms(
+  clinicId: string,
+  to: string,
+  message: string,
+  patientId?: string,
+): Promise<SmsLogEntry> {
+  // Prepare a log entry payload (without id/createdAt)
+  const payload: Omit<SmsLogEntry, 'id' | 'createdAt'> = {
+    clinicId,
+    to,
+    message,
+    patientId,
+    status: 'queued', // initial optimistic status
+    notes: undefined,
+  };
+
+  // Try the external API first (if you have one). If it returns OK and a success
+  // flag, mark the log as sent; otherwise fall back to logging failure locally.
+  try {
+    // NOTE: update this URL if your real SMS API endpoint is different.
+    // On GitHub Pages there is no backend, so this request will usually 404/405.
+    const resp = await fetch('/api/sms/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clinicId, to, message, patientId }),
+    });
+
+    if (!resp.ok) {
+      // Non-2xx - treat as failure but capture status
+      const text = await resp.text().catch(() => `${resp.status}`);
+      payload.status = 'failed';
+      payload.notes = `SMS API responded ${resp.status}: ${text}`;
+      // persist failed log
+      return await addSmsLog(payload);
+    }
+
+    // Try parse JSON response to detect success marker
+    let json: any = null;
+    try { json = await resp.json(); } catch (_) { /* ignore parse error */ }
+
+    // Determine final status based on API reply (best-effort)
+    const apiSuccess = json?.success === true || resp.status === 200;
+    payload.status = apiSuccess ? 'sent' : 'failed';
+    payload.notes = json?.message ?? (apiSuccess ? 'sent via external API' : `API returned ${resp.status}`);
+
+    // Persist the log (sent or failed)
+    return await addSmsLog(payload);
+  } catch (err) {
+    // Network or other error — fallback to local log with failed status
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('sendSms: external API call failed, falling back to smslog', err);
+    payload.status = 'failed';
+    payload.notes = errMsg;
+    return await addSmsLog(payload);
+  }
+}
+
 export async function clearSmsLog(clinicId: string): Promise<void> {
   const entries = await getFiltered<SmsLogEntry>('smslog', 'clinicId', clinicId);
   const batch = writeBatch(db);
   entries.forEach((e) => batch.delete(doc(db, 'smslog', e.id)));
   await batch.commit();
 }
- 
 // ─── labs ────────────────────────────────────────────────────────────
  
 export function getLabs(clinicId: string): Lab[] {
