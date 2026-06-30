@@ -24,14 +24,31 @@ export default function SecretaryManagement() {
   const [form, setForm] = useState({ name: '', email: '', password: '', allowedPages: ['patients'] as string[] });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const availablePages = (() => {
-    if (!clinicId) return ALL_SECRETARY_PAGES;
-    const branch = getBranches().find((b) => b.id === clinicId);
-    if (!branch || !branch.allowedSecretaryPages || branch.allowedSecretaryPages.length === 0) {
-      return ALL_SECRETARY_PAGES;
-    }
-    return ALL_SECRETARY_PAGES.filter((p) => branch.allowedSecretaryPages!.includes(p.key));
-  })();
+  // replaced synchronous call to async getBranches() with state + effect
+  const [availablePages, setAvailablePages] = useState(ALL_SECRETARY_PAGES);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!clinicId) {
+        if (active) setAvailablePages(ALL_SECRETARY_PAGES);
+        return;
+      }
+      try {
+        const allBranches = await getBranches();
+        if (!active) return;
+        const branch = allBranches.find((b) => b.id === clinicId);
+        if (!branch || !branch.allowedSecretaryPages || branch.allowedSecretaryPages.length === 0) {
+          setAvailablePages(ALL_SECRETARY_PAGES);
+        } else {
+          setAvailablePages(ALL_SECRETARY_PAGES.filter((p) => branch.allowedSecretaryPages!.includes(p.key)));
+        }
+      } catch (err) {
+        if (active) setAvailablePages(ALL_SECRETARY_PAGES);
+      }
+    })();
+    return () => { active = false; };
+  }, [clinicId]);
 
   const fetchList = useCallback(async () => {
     if (!clinicId) { setLoadingList(false); return; }
@@ -61,8 +78,10 @@ export default function SecretaryManagement() {
     setIsSubmitting(true);
     setCreateError('');
     try {
-      const existing = getUsers().find((u) => u.email === form.email);
-      if (existing) { setCreateError('هذا البريد الإلكتروني مستخدم مسبقاً'); return; }
+      // await the async users fetch before using .find
+      const allUsers = await getUsers();
+      const existing = allUsers.find((u) => u.email === form.email);
+      if (existing) { setCreateError('هذا البريد الإلكتروني مستخدم مسبقاً'); setIsSubmitting(false); return; }
 
       const newUser: UserProfile = {
         uid: crypto.randomUUID(),
@@ -74,7 +93,7 @@ export default function SecretaryManagement() {
         doctorId: userProfile?.uid ?? '',
         allowedPages: form.allowedPages,
       };
-      saveUser(newUser);
+      await saveUser(newUser);
       setSuccessInfo({ name: form.name, email: form.email, password: form.password });
       setForm({ name: '', email: '', password: '', allowedPages: ['patients'] });
       setShowForm(false);
