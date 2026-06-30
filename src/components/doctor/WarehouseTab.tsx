@@ -46,7 +46,7 @@ export default function WarehouseTab() {
   const [filterType, setFilterType] = useState<WarehouseItemType | 'all'>('all');
 
   const fetchItems = useCallback(async () => {
-    if (!clinicId) return;
+    if (!clinicId) { setLoading(false); return; }
     setLoading(true);
     try {
       setItems(await getWarehouseItems(clinicId));
