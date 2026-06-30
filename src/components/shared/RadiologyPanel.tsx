@@ -61,9 +61,9 @@ export function RadiologyPanel({ patientId }: Props) {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!clinicId || !pendingFile) return;
-    addRadiologyImage({
+    await addRadiologyImage({
       clinicId,
       patientId,
       imageData: pendingFile.data,
@@ -78,10 +78,10 @@ export function RadiologyPanel({ patientId }: Props) {
     reload();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!clinicId) return;
     if (!confirm('حذف هذه الصورة؟')) return;
-    deleteRadiologyImage(id, clinicId);
+    await deleteRadiologyImage(id, clinicId);
     if (preview?.id === id) setPreview(null);
     reload();
   };
