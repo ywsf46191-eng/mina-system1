@@ -1,4 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location'; // تفعيل نظام الهاش للتوجيه المستقر
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -18,7 +19,7 @@ import AccountingPage from './pages/doctor/AccountingPage';
 import StatisticsPage from './pages/doctor/StatisticsPage';
 import AppearancePage from './pages/doctor/AppearancePage';
 
-// مكونات مؤقتة للمختبرات والأشعة لتجنب الـ 404 حتى تضع الملفات الأصلية
+// مكونات مؤقتة للمختبرات والأشعة مصلحة المسارات لتجنب الـ 404
 function LabsPage() {
   return (
     <div className="p-6 text-right" dir="rtl">
@@ -114,8 +115,8 @@ function Router() {
         )}
       </Route>
 
-      {/* مسارات المختبرات والأشعة المضافة */}
-      <Route path="/labs">
+      {/* تعديل المسارات هنا لتطابق روابط الـ Sidebar تماماً لتجنب الـ 404 */}
+      <Route path="/doctor/labs">
         {() => (
           <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
             <LabsPage />
@@ -123,7 +124,7 @@ function Router() {
         )}
       </Route>
 
-      <Route path="/radiology">
+      <Route path="/doctor/radiology">
         {() => (
           <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
             <RadiologyPage />
@@ -184,7 +185,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          {/* استخدام خطاف الهاش لحل مشاكل الرفع على الاستضافات الجاهزة */}
+          <WouterRouter hook={useHashLocation}>
             <Router />
           </WouterRouter>
         </ThemeProvider>
