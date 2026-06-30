@@ -7,7 +7,7 @@ import { getClinicSettings } from '../../firebase/firestoreService';
 import {
   Stethoscope, LogOut, LayoutDashboard, Users, Sun, Moon, CreditCard,
   Building2, Phone, UserCog, Package, Calculator, BarChart2, ImageIcon,
-  ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare, Tooth,
+  ChevronDown, ChevronUp, GitBranch, Shield, MessageSquare,
 } from 'lucide-react';
 
 interface LayoutProps { children: ReactNode; title?: string; }
@@ -108,12 +108,12 @@ export function Layout({ children }: LayoutProps) {
         }`}>
           <div className="px-5 py-5 border-b border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3">
-              <div>
-                <p className="text-xs font-black tracking-widest text-blue-600 leading-none">MINA</p>
-                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-widest leading-none mt-0.5">SYSTEM</p>
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <span className="text-white text-lg font-bold">M</span>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center shadow-md">
-                <Tooth className="text-white w-6 h-6" />
+              <div>
+                <p className="text-sm font-black tracking-widest text-blue-600 dark:text-blue-400 leading-none">MINA</p>
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 tracking-widest leading-none mt-0.5">SYSTEM</p>
               </div>
             </div>
             {userProfile && (
