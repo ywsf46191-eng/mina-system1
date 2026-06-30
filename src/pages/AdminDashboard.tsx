@@ -91,9 +91,9 @@ export default function AdminDashboard() {
   const [successMsg, setSuccessMsg] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
 
-  const reload = () => {
-    setBranches(getBranches());
-    setUsers(getUsers().filter((u) => u.role !== 'superadmin'));
+  const reload = async () => {
+    setBranches(await getBranches());
+    setUsers((await getUsers()).filter((u) => u.role !== 'superadmin'));
   };
 
   useEffect(() => { reload(); }, []);
@@ -106,10 +106,10 @@ export default function AdminDashboard() {
   const toggleBranchSecretaryPage = (key: string) =>
     setBranchForm((f) => ({ ...f, allowedSecretaryPages: f.allowedSecretaryPages.includes(key) ? f.allowedSecretaryPages.filter((p) => p !== key) : [...f.allowedSecretaryPages, key] }));
 
-  const handleSaveBranch = () => {
+  const handleSaveBranch = async () => {
     if (!branchForm.name.trim()) return;
     if (editBranch) {
-      saveBranch({
+      await saveBranch({
         ...editBranch,
         name: branchForm.name,
         address: branchForm.address,
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
       });
       setEditBranch(null);
     } else {
-      createBranchRecord({
+      await createBranchRecord({
         name: branchForm.name,
         address: branchForm.address,
         phone: branchForm.phone,
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
     setBranchForm({ name: '', address: '', phone: '', allowedDoctorPages: [], allowedSecretaryPages: [] });
     setShowBranchForm(false);
     setShowBranchPerms(false);
-    reload();
+    await reload();
     flash('تم حفظ الفرع بنجاح');
   };
 
@@ -147,22 +147,24 @@ export default function AdminDashboard() {
     setShowBranchPerms(true);
   };
 
-  const handleDeleteBranch = (id: string) => {
+  const handleDeleteBranch = async (id: string) => {
     if (!confirm('هل تريد حذف هذا الفرع؟')) return;
-    deleteBranch(id);
-    reload();
+    await deleteBranch(id);
+    await reload();
   };
 
-  const toggleManagerBranch = (branchId: string, managerId: string) => {
-    const branch = getBranches().find((b) => b.id === branchId);
+  const toggleManagerBranch = async (branchId: string, managerId: string) => {
+    const allBranches = await getBranches();
+    const branch = allBranches.find((b) => b.id === branchId);
     if (!branch) return;
     const ids = branch.managerIds.includes(managerId)
       ? branch.managerIds.filter((id) => id !== managerId)
       : [...branch.managerIds, managerId];
-    saveBranch({ ...branch, managerIds: ids });
-    const user = getUsers().find((u) => u.uid === managerId);
-    if (user) saveUser({ ...user, clinicId: ids.length > 0 ? branchId : '' });
-    reload();
+    await saveBranch({ ...branch, managerIds: ids });
+    const allUsers = await getUsers();
+    const user = allUsers.find((u) => u.uid === managerId);
+    if (user) await saveUser({ ...user, clinicId: ids.length > 0 ? branchId : '' });
+    await reload();
   };
 
   const getAvailablePages = () => {
@@ -181,9 +183,10 @@ export default function AdminDashboard() {
     }));
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!userForm.email || !userForm.password || !userForm.displayName) return;
-    if (getUsers().find((u) => u.email === userForm.email)) {
+    const allUsers = await getUsers();
+    if (allUsers.find((u) => u.email === userForm.email)) {
       alert('البريد الإلكتروني مستخدم مسبقاً'); return;
     }
     const newUser: UserProfile = {
@@ -195,17 +198,17 @@ export default function AdminDashboard() {
       clinicId: userForm.clinicId,
       allowedPages: userForm.role === 'branch_manager' ? ['*'] : userForm.allowedPages,
     };
-    saveUser(newUser);
+    await saveUser(newUser);
     setUserForm({ displayName: '', email: '', password: '', role: 'branch_manager', clinicId: '', allowedPages: [] });
     setShowUserForm(false);
-    reload();
-    flash(`تم إنشاء حساب ${userForm.displayName} بنجاح`);
+    await reload();
+    flash(`تم إنشاء حساب ${newUser.displayName} بنجاح`);
   };
 
-  const handleDeleteUser = (uid: string) => {
+  const handleDeleteUser = async (uid: string) => {
     if (!confirm('هل تريد حذف هذا المستخدم؟')) return;
-    deleteUser(uid);
-    reload();
+    await deleteUser(uid);
+    await reload();
   };
 
   const filteredUsers = filterRole === 'all' ? users : users.filter((u) => u.role === filterRole);
