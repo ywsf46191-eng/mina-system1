@@ -458,3 +458,66 @@ export async function updateLabTransfer(
 export async function deleteLabTransfer(id: string): Promise<void> {
   await remove("labTransfers", id);
 }
+// ─────────────────────────────────────────────────────────────
+// Radiology Images
+// ─────────────────────────────────────────────────────────────
+
+export async function getRadiologyImages(
+  clinicId: string,
+  patientId: string
+): Promise<RadiologyImage[]> {
+  const q = query(
+    collection(db, "radiology"),
+    where("clinicId", "==", clinicId),
+    where("patientId", "==", patientId)
+  );
+
+  const snap = await getDocs(q);
+
+  return snap.docs.map(
+    (d) =>
+      ({
+        id: d.id,
+        ...d.data(),
+      }) as RadiologyImage
+  );
+}
+
+export async function addRadiologyImage(
+  data: Omit<RadiologyImage, "id">
+): Promise<RadiologyImage> {
+  const image: RadiologyImage = {
+    ...data,
+    id: uid(),
+  };
+
+  await upsert("radiology", image.id, image);
+
+  return image;
+}
+
+export async function updateRadiologyImage(
+  id: string,
+  data: Partial<RadiologyImage>
+): Promise<void> {
+  await upsert("radiology", id, data);
+}
+
+export async function deleteRadiologyImage(
+  id: string
+): Promise<void> {
+  await remove("radiology", id);
+}
+
+export async function getRadiologyImageById(
+  id: string
+): Promise<RadiologyImage | undefined> {
+  const snap = await getDoc(doc(db, "radiology", id));
+
+  if (!snap.exists()) return undefined;
+
+  return {
+    id: snap.id,
+    ...snap.data(),
+  } as RadiologyImage;
+}
