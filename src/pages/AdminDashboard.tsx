@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 type Tab = 'branches' | 'managers';
-
+// استبدلي تعريف ALL_DOCTOR_PAGES بالمحتوى التالي
 const ALL_DOCTOR_PAGES = [
   { key: 'patients',    label: '📋 المرضى' },
   { key: 'secretaries', label: '🗂️ السكرتارية' },
@@ -20,12 +20,18 @@ const ALL_DOCTOR_PAGES = [
   { key: 'accounting',  label: '🧾 المحاسبة' },
   { key: 'statistics',  label: '📊 الإحصائيات' },
   { key: 'appearance',  label: '🎨 المظهر' },
+  { key: 'labs',        label: '🧪 المعامل' },
+  { key: 'radiology',   label: '🩻 الأشعة' },
+  { key: 'treatment_plan_print', label: '🖨️ طباعة الخطة العلاجية' },
 ];
 
+// استبدلي تعريف ALL_SECRETARY_PAGES بالمحتوى التالي
 const ALL_SECRETARY_PAGES = [
   { key: 'patients', label: '📋 المرضى' },
   { key: 'finance',  label: '💰 المالية' },
   { key: 'sms',      label: '📱 إرسال SMS' },
+  { key: 'radiology', label: '🩻 الأشعة' },
+  { key: 'labs',      label: '🧪 المعامل' },
 ];
 
 function Input({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
