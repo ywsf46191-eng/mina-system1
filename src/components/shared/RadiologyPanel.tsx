@@ -1,12 +1,9 @@
+// name=src/components/shared/RadiologyPanel.tsx
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getRadiologyImages, addRadiologyImage, deleteRadiologyImage } from '../../firebase/firestoreService';
 import type { RadiologyImage } from '../../types';
 import { ImagePlus, Camera, Trash2, X, ScanLine, Loader2 } from 'lucide-react';
-
-interface Props {
-  patientId: string;
-}
 
 function fileToCompressedBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -32,7 +29,7 @@ function fileToCompressedBase64(file: File): Promise<string> {
   });
 }
 
-export function RadiologyPanel({ patientId }: Props) {
+export function RadiologyPanel({ patientId }: { patientId: string }) {
   const { clinicId, userProfile } = useAuth();
   const [images, setImages] = useState<RadiologyImage[]>([]);
   const [processing, setProcessing] = useState(false);
@@ -45,7 +42,12 @@ export function RadiologyPanel({ patientId }: Props) {
 
   const reload = () => {
     if (!clinicId) return;
-    setImages(getRadiologyImages(clinicId, patientId));
+    try {
+      setImages(getRadiologyImages(clinicId, patientId));
+    } catch (err) {
+      console.error('Failed to load radiology images', err);
+      setImages([]);
+    }
   };
 
   useEffect(() => { reload(); }, [clinicId, patientId]);
@@ -56,6 +58,9 @@ export function RadiologyPanel({ patientId }: Props) {
     try {
       const data = await fileToCompressedBase64(file);
       setPendingFile({ data, source });
+    } catch (err) {
+      console.error('fileToCompressedBase64 error', err);
+      alert('فشل معالجة الصورة');
     } finally {
       setProcessing(false);
     }
@@ -63,45 +68,47 @@ export function RadiologyPanel({ patientId }: Props) {
 
   const handleSave = async () => {
     if (!clinicId || !pendingFile) return;
-    await addRadiologyImage({
-      clinicId,
-      patientId,
-      imageData: pendingFile.data,
-      description,
-      notes,
-      source: pendingFile.source,
-      createdBy: userProfile?.displayName ?? 'مستخدم',
-    });
-    setPendingFile(null);
-    setDescription('');
-    setNotes('');
-    reload();
+    try {
+      await addRadiologyImage({
+        clinicId,
+        patientId,
+        imageData: pendingFile.data,
+        description,
+        notes,
+        source: pendingFile.source,
+        createdBy: userProfile?.displayName ?? 'مستخدم',
+      });
+      setPendingFile(null);
+      setDescription('');
+      setNotes('');
+      reload();
+    } catch (err) {
+      console.error('addRadiologyImage error', err);
+      alert('حدث خطأ أثناء حفظ الصورة');
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!clinicId) return;
     if (!confirm('حذف هذه الصورة؟')) return;
-    await deleteRadiologyImage(id, clinicId);
-    if (preview?.id === id) setPreview(null);
-    reload();
+    try {
+      await deleteRadiologyImage(id, clinicId);
+      if (preview?.id === id) setPreview(null);
+      reload();
+    } catch (err) {
+      console.error('deleteRadiologyImage error', err);
+      alert('فشل حذف الصورة');
+    }
   };
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => uploadRef.current?.click()}
-          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl transition"
-        >
+        <button type="button" onClick={() => uploadRef.current?.click()} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-xl transition">
           <ImagePlus className="w-3.5 h-3.5" /> رفع صورة أشعة
         </button>
-        <button
-          type="button"
-          onClick={() => deviceRef.current?.click()}
-          className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl transition"
-        >
-          <Camera className="w-3.5 h-3.5" /> جلب من جهاز الأشعة / الكاميرا
+        <button type="button" onClick={() => deviceRef.current?.click()} className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-2 rounded-xl transition">
+          <Camera className="w-3.5 h-3.5" /> جلب من جهاز
         </button>
         {processing && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
         <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0], 'upload')} />
@@ -117,15 +124,15 @@ export function RadiologyPanel({ patientId }: Props) {
           <img src={pendingFile.data} alt="معاينة" className="w-full max-h-64 object-contain rounded-xl border border-slate-200 dark:border-slate-600 bg-black/5" />
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">وصف الصورة *</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="مثال: أشعة بانورامية، أشعة السن 36..." className="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="مثال: بانورامية" className="w-full border rounded-xl px-3 py-2 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">ملاحظات</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full border border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="w-full border rounded-xl px-3 py-2 text-sm"></textarea>
           </div>
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={!description.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium px-4 py-2.5 rounded-xl transition">حفظ الصورة</button>
-            <button onClick={() => setPendingFile(null)} className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs transition">إلغاء</button>
+            <button onClick={handleSave} disabled={!description.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-medium px-4 py-2.5 rounded-xl">حفظ</button>
+            <button onClick={() => setPendingFile(null)} className="px-4 py-2.5 rounded-xl bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs">إلغاء</button>
           </div>
         </div>
       )}
