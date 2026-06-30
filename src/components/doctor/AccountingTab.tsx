@@ -50,7 +50,7 @@ export default function AccountingTab() {
   const [savingBill, setSavingBill] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!clinicId) return;
+    if (!clinicId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [s, b] = await Promise.all([getSalaries(clinicId), getBills(clinicId)]);
