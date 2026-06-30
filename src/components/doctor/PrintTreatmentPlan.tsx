@@ -1,3 +1,4 @@
+// src/components/doctor/PrintTreatmentPlan.tsx
 import { useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import { resolveVisualStatus } from '../../lib/teeth';
@@ -68,6 +69,9 @@ function getToothState(
     const key = `${loc}_${display}`;
     if (chartState[key]) return chartState[key];
   }
+  // last-resort: find any key that ends with _display
+  const fallbackKey = Object.keys(chartState).find((k) => k.endsWith(`_${display}`));
+  if (fallbackKey) return chartState[fallbackKey];
   return undefined;
 }
 
@@ -108,17 +112,28 @@ export default function PrintTreatmentPlan({ patient }: Props) {
 
   useEffect(() => {
     if (!open || !clinicId) return;
-    const images = getRadiologyImages(clinicId, patient.id);
-    setRadiologyImages(images);
+    try {
+      const images = getRadiologyImages(clinicId, patient.id);
+      setRadiologyImages(images);
+    } catch (err) {
+      console.error('Failed to load radiology images', err);
+      setRadiologyImages([]);
+    }
   }, [open, clinicId, patient.id]);
 
   useEffect(() => {
     if (!open) return;
-    const timer = setTimeout(() => window.print(), 250);
+    const timer = setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        console.error('print error', e);
+      }
+    }, 250);
     return () => clearTimeout(timer);
   }, [open]);
 
-  const chartState = patient.dentalChart ?? {};
+  const chartState = (patient.dentalChart ?? {}) as DentalChartState;
   const dentalRows = patient.dentalRows ?? [];
 
   const totalPrice = dentalRows.reduce((sum, r) => sum + Number(r.price ?? 0), 0);
@@ -243,7 +258,7 @@ export default function PrintTreatmentPlan({ patient }: Props) {
                 </tbody>
               </table>
 
-              {/* الجدول المالي الإجمالي */}
+              {/* الملخص المالي */}
               <h2 className="text-sm font-bold text-slate-700 mb-2">الملخص المالي</h2>
               <table className="w-full text-xs border-collapse">
                 <thead>
@@ -272,19 +287,22 @@ export default function PrintTreatmentPlan({ patient }: Props) {
                 <p className="text-center text-slate-400 text-sm py-10">لا توجد صور أشعة مرفوعة لهذا المريض</p>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  {radiologyImages.map((img) => (
-                    <div key={img.id} className="border border-slate-300 rounded-xl p-2">
-                      {/* ملاحظة: عدّل اسم الحقل (url) لو الحقل الفعلي في RadiologyImage مختلف */}
-                      <img
-                        src={(img as any).url ?? (img as any).imageUrl ?? ''}
-                        alt="صورة أشعة"
-                        style={{ width: '100%', height: 220, objectFit: 'contain', background: '#f8fafc' }}
-                      />
-                      <p className="text-[10px] text-slate-500 mt-1 text-center">
-                        {new Date(img.createdAt).toLocaleDateString('ar-EG')}
-                      </p>
-                    </div>
-                  ))}
+                  {radiologyImages.map((img) => {
+                    // imageData is the primary field used elsewhere in the app
+                    const src = (img as any).imageData ?? (img as any).url ?? (img as any).imageUrl ?? '';
+                    return (
+                      <div key={img.id} className="border border-slate-300 rounded-xl p-2">
+                        <img
+                          src={src}
+                          alt={img.description ?? 'صورة أشعة'}
+                          style={{ width: '100%', height: 220, objectFit: 'contain', background: '#f8fafc' }}
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1 text-center">
+                          {new Date(img.createdAt).toLocaleDateString('ar-EG')}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
