@@ -30,6 +30,47 @@ export interface DentalRow {
   remainingAmount: number;
 }
 
+export interface Lab {
+  id: string;
+  clinicId: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  specializations?: string[];
+  notes?: string;
+  createdAt: string;
+}
+
+export interface LabTransfer {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  patientName: string;
+  labId: string;
+  labName: string;
+  toothNumber: string;
+  diagnosis: string;
+  transferDate: string;
+  expectedReturnDate?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface RadiologyImage {
+  id: string;
+  clinicId: string;
+  patientId: string;
+  imageData: string; // Base64 encoded
+  description: string;
+  notes?: string;
+  source: 'upload' | 'device';
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface Patient {
   id: string;
   clinicId: string;
