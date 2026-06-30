@@ -429,3 +429,32 @@ export async function deleteLab(id: string, clinicId: string): Promise<void> {
   }
   return;
 }
+// ─── Lab Transfers ─────────────────────────────────────────────
+
+export async function getLabTransfers(clinicId: string): Promise<LabTransfer[]> {
+  return getFiltered<LabTransfer>("labTransfers", "clinicId", clinicId);
+}
+
+export async function addLabTransfer(
+  data: Omit<LabTransfer, "id">
+): Promise<LabTransfer> {
+  const transfer: LabTransfer = {
+    ...data,
+    id: uid(),
+  };
+
+  await upsert("labTransfers", transfer.id, transfer);
+
+  return transfer;
+}
+
+export async function updateLabTransfer(
+  id: string,
+  data: Partial<LabTransfer>
+): Promise<void> {
+  await upsert("labTransfers", id, data);
+}
+
+export async function deleteLabTransfer(id: string): Promise<void> {
+  await remove("labTransfers", id);
+}
