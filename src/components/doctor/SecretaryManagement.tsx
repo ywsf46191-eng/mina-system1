@@ -34,7 +34,7 @@ export default function SecretaryManagement() {
   })();
 
   const fetchList = useCallback(async () => {
-    if (!clinicId) return;
+    if (!clinicId) { setLoadingList(false); return; }
     setLoadingList(true);
     try {
       const data = await getSecretaries(clinicId);
