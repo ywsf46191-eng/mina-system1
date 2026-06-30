@@ -18,6 +18,25 @@ import AccountingPage from './pages/doctor/AccountingPage';
 import StatisticsPage from './pages/doctor/StatisticsPage';
 import AppearancePage from './pages/doctor/AppearancePage';
 
+// مكونات مؤقتة للمختبرات والأشعة لتجنب الـ 404 حتى تضع الملفات الأصلية
+function LabsPage() {
+  return (
+    <div className="p-6 text-right" dir="rtl">
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">قسم المختبرات والتحاليل</h1>
+      <p className="text-slate-600 dark:text-slate-400">هذه الصفحة قيد التطوير وجاهزة لاستقبال التصميم الخاص بك.</p>
+    </div>
+  );
+}
+
+function RadiologyPage() {
+  return (
+    <div className="p-6 text-right" dir="rtl">
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">قسم الأشعة الرقمية</h1>
+      <p className="text-slate-600 dark:text-slate-400">هذه الصفحة قيد التطوير وجاهزة لاستقبال التصميم الخاص بك.</p>
+    </div>
+  );
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 30_000 },
@@ -91,6 +110,23 @@ function Router() {
         {() => (
           <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <AppearancePage />
+          </ProtectedRoute>
+        )}
+      </Route>
+
+      {/* مسارات المختبرات والأشعة المضافة */}
+      <Route path="/labs">
+        {() => (
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+            <LabsPage />
+          </ProtectedRoute>
+        )}
+      </Route>
+
+      <Route path="/radiology">
+        {() => (
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+            <RadiologyPage />
           </ProtectedRoute>
         )}
       </Route>
