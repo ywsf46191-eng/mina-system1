@@ -22,7 +22,7 @@ const dentalRowSchema = z.object({
 });
 
 const schema = z.object({
-  fileNumber: z.coerce.number().min(1, 'رقم الملف مطلوب'),
+  fileNumber: z.coerce.number({ invalid_type_error: 'رقم الملف مطلوب ويجب أن يكون رقماً', required_error: 'رقم الملف مطلوب' }).min(1, 'رقم الملف مطلوب'),
   fullName: z.string().min(2, 'الاسم الثلاثي مطلوب'),
   gender: z.enum(['male', 'female']),
   phoneNumber: z.string().min(9, 'رقم الجوال مطلوب'),
@@ -150,7 +150,10 @@ export default function AddPatientForm({ onSuccess }: Props) {
   }, [append]);
 
   const onSubmit = async (data: FormData) => {
-    if (!clinicId) return;
+    if (!clinicId) {
+      alert('تعذّر حفظ المريض: حسابك غير مرتبط بأي عيادة (clinicId فارغ). يرجى مراجعة الطبيب/الأدمن للتأكد من ربط حساب السكرتارية بالعيادة الصحيحة.');
+      return;
+    }
 
     // حساب المبلغ المتبقي لكل صف قبل الحفظ الفعلي
     const processedDentalRows = (data.dentalRows || []).map((row) => {
