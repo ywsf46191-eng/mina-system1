@@ -1,4 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location'; // تفعيل نظام الهاش للتوجيه المستقر
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -17,7 +18,41 @@ import WarehousePage from './pages/doctor/WarehousePage';
 import AccountingPage from './pages/doctor/AccountingPage';
 import StatisticsPage from './pages/doctor/StatisticsPage';
 import AppearancePage from './pages/doctor/AppearancePage';
-import LabsPage from './pages/doctor/LabsPage';
+
+import LabsTab from './components/doctor/LabsTab';
+import { useLocation } from 'wouter';
+import { Layout } from './components/shared/Layout';
+
+// قسم المعامل: نفس المكوّن المستخدم داخل لوحة الطبيب (تبويب المعامل) بحيث لا يظهر "قيد التطوير"
+function LabsPage() {
+  return (
+    <Layout>
+      <LabsTab />
+    </Layout>
+  );
+}
+
+// صفحة الأشعة الرقمية مرتبطة بملف مريض محدد، لذلك لا يمكن عرضها بدون اختيار مريض أولاً
+function RadiologyPage() {
+  const [, navigate] = useLocation();
+  return (
+    <Layout>
+      <div className="text-right" dir="rtl">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">قسم الأشعة الرقمية</h1>
+        <p className="text-slate-600 dark:text-slate-400 mb-4">
+          الأشعة مرتبطة بملف كل مريض على حدة. لإضافة أو عرض الأشعة، افتح ملف المريض من لوحة الطبيب
+          ثم اختر تبويب "الأشعة" داخل ملفه.
+        </p>
+        <button
+          onClick={() => navigate('/doctor')}
+          className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+        >
+          الذهاب إلى لوحة الطبيب
+        </button>
+      </div>
+    </Layout>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +77,7 @@ function Router() {
       {/* Doctor routes */}
       <Route path="/doctor/branches">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <DoctorBranchesPage />
           </ProtectedRoute>
         )}
@@ -50,7 +85,7 @@ function Router() {
 
       <Route path="/doctor/secretaries">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <SecretariesPage />
           </ProtectedRoute>
         )}
@@ -58,7 +93,7 @@ function Router() {
 
       <Route path="/doctor/doctors">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <DoctorsPage />
           </ProtectedRoute>
         )}
@@ -66,7 +101,7 @@ function Router() {
 
       <Route path="/doctor/warehouse">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <WarehousePage />
           </ProtectedRoute>
         )}
@@ -74,7 +109,7 @@ function Router() {
 
       <Route path="/doctor/accounting">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <AccountingPage />
           </ProtectedRoute>
         )}
@@ -82,7 +117,7 @@ function Router() {
 
       <Route path="/doctor/statistics">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <StatisticsPage />
           </ProtectedRoute>
         )}
@@ -90,23 +125,32 @@ function Router() {
 
       <Route path="/doctor/appearance">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <AppearancePage />
           </ProtectedRoute>
         )}
       </Route>
 
+      {/* تعديل المسارات هنا لتطابق روابط الـ Sidebar تماماً لتجنب الـ 404 */}
       <Route path="/doctor/labs">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
             <LabsPage />
+          </ProtectedRoute>
+        )}
+      </Route>
+
+      <Route path="/doctor/radiology">
+        {() => (
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+            <RadiologyPage />
           </ProtectedRoute>
         )}
       </Route>
 
       <Route path="/doctor">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'branch_manager']}>
             <DoctorPage />
           </ProtectedRoute>
         )}
@@ -115,7 +159,7 @@ function Router() {
       {/* Secretary routes */}
       <Route path="/secretary/finance">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager']}>
             <SecretaryFinancePage />
           </ProtectedRoute>
         )}
@@ -123,7 +167,7 @@ function Router() {
 
       <Route path="/secretary/sms">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager']}>
             <SecretarySmsPage />
           </ProtectedRoute>
         )}
@@ -131,7 +175,7 @@ function Router() {
 
       <Route path="/secretary">
         {() => (
-          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager', 'doctor_secretary']}>
+          <ProtectedRoute allowedRoles={['doctor', 'secretary', 'branch_manager']}>
             <SecretaryPage />
           </ProtectedRoute>
         )}
@@ -157,7 +201,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          {/* استخدام خطاف الهاش لحل مشاكل الرفع على الاستضافات الجاهزة */}
+          <WouterRouter hook={useHashLocation}>
             <Router />
           </WouterRouter>
         </ThemeProvider>
