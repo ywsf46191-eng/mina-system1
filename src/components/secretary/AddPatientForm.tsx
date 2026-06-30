@@ -16,9 +16,9 @@ const dentalRowSchema = z.object({
   toothNo: z.string(),
   diagnosis: z.string(),
   treatmentProcedure: z.string(),
-  price: z.coerce.number().min(0),
-  payment: z.coerce.number().min(0),
-  remainingAmount: z.number(),
+  price: z.coerce.number().min(0).default(0),
+  payment: z.coerce.number().min(0).default(0),
+  remainingAmount: z.number().default(0),
 });
 
 const schema = z.object({
@@ -64,7 +64,11 @@ function Label({ children }: { children: React.ReactNode }) {
   return <label className="block text-sm font-medium text-slate-600 mb-1">{children}</label>;
 }
 
-function Input({ error, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { error?: string }) {
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  error?: string;
+}
+
+function Input({ error, ...props }: InputProps) {
   return (
     <div>
       <input
@@ -115,7 +119,11 @@ export default function AddPatientForm({ onSuccess }: Props) {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
+      fileNumber: undefined,
+      fullName: '',
       gender: 'male',
+      phoneNumber: '',
+      backupPhoneNumber: '',
       isSmoker: false,
       pregnancyOrBreastfeeding: false,
       dentalRows: [],
@@ -143,6 +151,19 @@ export default function AddPatientForm({ onSuccess }: Props) {
 
   const onSubmit = async (data: FormData) => {
     if (!clinicId) return;
+
+    // حساب المبلغ المتبقي لكل صف قبل الحفظ الفعلي
+    const processedDentalRows = (data.dentalRows || []).map((row) => {
+      const p = Number(row.price) || 0;
+      const pay = Number(row.payment) || 0;
+      return {
+        ...row,
+        price: p,
+        payment: pay,
+        remainingAmount: p - pay,
+      };
+    });
+
     const patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'> = {
       ...data,
       clinicId,
@@ -154,10 +175,16 @@ export default function AddPatientForm({ onSuccess }: Props) {
       periodDetails: data.periodDetails ?? '',
       nextAppointmentDate: '',
       nextAppointmentTime: '',
+      dentalRows: processedDentalRows,
     };
-    const id = await createPatient(patientData);
-    setSaved(true);
-    onSuccess?.(id);
+
+    try {
+      const id = await createPatient(patientData);
+      setSaved(true);
+      onSuccess?.(id);
+    } catch (error) {
+      console.error("Error creating patient:", error);
+    }
   };
 
   if (saved) {
@@ -193,7 +220,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
           <div>
             <Label>الجنس</Label>
             <div className="flex gap-4 mt-2">
-              {(['male', 'female'] as const).map((g) => (
+              {((['male', 'female'] as const)).map((g) => (
                 <label key={g} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
