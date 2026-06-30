@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useAuth } from '../../contexts/AuthContext';
 import { createPatient } from '../../firebase/firestoreService';
 import { Plus, Trash2, Save, ChevronDown, ChevronUp } from 'lucide-react';
-import type { Patient } from '../../types';
+import type { Patient, ToothState } from '../../types';
 import { PhoneInput } from '../shared/PhoneInput';
 
 const uuidv4 = () => crypto.randomUUID();
@@ -13,19 +13,29 @@ const uuidv4 = () => crypto.randomUUID();
 const dentalRowSchema = z.object({
   id: z.string(),
   date: z.string(),
-  toothNo: z.string(),
-  diagnosis: z.string(),
-  treatmentProcedure: z.string(),
-  price: z.coerce.number().min(0).default(0),
-  payment: z.coerce.number().min(0).default(0),
+  toothNo: z.string(), // '1'..'8'
+  location: z.enum(['upper-right', 'upper-left', 'lower-right', 'lower-left']).default('upper-right'),
+  diagnosis: z.string().optional().default(''),
+  treatmentProcedure: z.string().optional().default(''),
+  // price/payment preprocess '' -> 0
+  price: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
+  payment: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
   remainingAmount: z.number().default(0),
+  totalSessions: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
+  completedSessions: z.preprocess((v) => (v === '' || v == null ? 0 : Number(v)), z.number().min(0).default(0)),
+  sessionNotes: z.string().optional().default(''),
+  nextAppointmentDate: z.string().optional().default(''),
 });
 
 const schema = z.object({
-  fileNumber: z.coerce.number({ invalid_type_error: 'رقم الملف مطلوب ويجب أن يكون رقماً', required_error: 'رقم الملف مطلوب' }).min(1, 'رقم الملف مطلوب'),
+  fileNumber: z.string()
+    .nonempty('رقم الملف مطلوب ويجب أن يكون رقمًا')
+    .regex(/^\d+$/, 'يجب أن يحتوي رقم الملف على أرقام فقط')
+    .transform((s) => parseInt(s, 10))
+    .refine((n) => Number.isFinite(n) && n >= 1, { message: 'يجب أن يكون رقم الملف رقمًا صحيحًا أكبر من صفر' }),
   fullName: z.string().min(2, 'الاسم الثلاثي مطلوب'),
   gender: z.enum(['male', 'female']),
-  phoneNumber: z.string().min(9, 'رقم الجوال مطلوب'),
+  phoneNumber: z.string().min(1, 'رقم الجوال مطلوب'),
   backupPhoneNumber: z.string().optional().default(''),
   chronicDiseases: z.string().optional().default(''),
   pastSurgeries: z.string().optional().default(''),
@@ -73,19 +83,19 @@ function Input({ error, ...props }: InputProps) {
     <div>
       <input
         {...props}
-        className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${error ? 'border-red-300' : 'border-slate-200'}`}
+        className={`w-full border rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${error ? 'border-red-300' : 'border-slate-200 dark:border-slate-600 dark:bg-slate-700 dark:text-white'}`}
       />
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>
   );
 }
 
-function Textarea({ ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
       rows={3}
-      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
+      className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:text-white"
     />
   );
 }
@@ -119,7 +129,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      fileNumber: undefined,
+      fileNumber: '' as unknown as FormData['fileNumber'],
       fullName: '',
       gender: 'male',
       phoneNumber: '',
@@ -140,45 +150,98 @@ export default function AddPatientForm({ onSuccess }: Props) {
     append({
       id: uuidv4(),
       date: new Date().toISOString().split('T')[0],
-      toothNo: '',
+      toothNo: '1',
+      location: 'upper-right',
       diagnosis: '',
       treatmentProcedure: '',
       price: 0,
       payment: 0,
       remainingAmount: 0,
+      totalSessions: 0,
+      completedSessions: 0,
+      sessionNotes: '',
+      nextAppointmentDate: '',
     });
   }, [append]);
 
   const onSubmit = async (data: FormData) => {
     if (!clinicId) {
-      alert('تعذّر حفظ المريض: حسابك غير مرتبط بأي عيادة (clinicId فارغ). يرجى مراجعة الطبيب/الأدمن للتأكد من ربط حساب السكرتارية بالعيادة الصحيحة.');
+      alert('تعذّر حفظ المريض: حسابك غير مرتبط بأي عيادة (clinicId فارغ). يرجى مراجعة الطبيب/الأدمن للتأكد من ربط الحساب.');
       return;
     }
 
-    // حساب المبلغ المتبقي لكل صف قبل الحفظ الفعلي
+    // defensive: ensure fileNumber numeric
+    const fileNumberNum = typeof data.fileNumber === 'number' ? data.fileNumber : Number(data.fileNumber);
+
+    // process dental rows and build dentalChart
     const processedDentalRows = (data.dentalRows || []).map((row) => {
-      const p = Number(row.price) || 0;
-      const pay = Number(row.payment) || 0;
+      const p = Number((row as any).price) || 0;
+      const pay = Number((row as any).payment) || 0;
+      const totalSessions = Number((row as any).totalSessions) || 0;
+      const completedSessions = Number((row as any).completedSessions) || 0;
+      const remaining = Math.max(0, p - pay);
       return {
         ...row,
         price: p,
         payment: pay,
-        remainingAmount: p - pay,
+        remainingAmount: remaining,
+        totalSessions,
+        completedSessions,
+        sessionNotes: row.sessionNotes ?? '',
+        nextAppointmentDate: row.nextAppointmentDate ?? '',
       };
     });
 
+    // Build dentalChart: key = `${location}_${toothNo}` (e.g. upper-right_1)
+    const dentalChart: Record<string, ToothState> = {};
+    processedDentalRows.forEach((r) => {
+      const key = `${r.location}_${r.toothNo}`;
+      const sessionsArray = Array.from({ length: Math.max(0, r.completedSessions) }, (_, i) => i + 1);
+      const ts: ToothState = {
+        diagnosis: r.diagnosis ?? '',
+        amount: r.price ?? 0,
+        treatmentStatus: (r.payment >= r.price && r.price > 0) ? 'done' : (r.price > 0 ? 'treatment' : 'none'),
+        totalSessions: r.totalSessions > 0 ? r.totalSessions : undefined,
+        completedSessions: sessionsArray.length > 0 ? sessionsArray : undefined,
+        sessionNotes: r.sessionNotes ? { last: r.sessionNotes } : undefined,
+        notes: r.treatmentProcedure ?? '',
+        status: (r.payment >= r.price && r.price > 0) ? 'done' : undefined,
+        workedOn: r.price > 0 || Boolean(r.diagnosis || r.treatmentProcedure),
+      };
+      dentalChart[key] = ts;
+    });
+
     const patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'> = {
-      ...data,
       clinicId,
+      fileNumber: fileNumberNum,
+      fullName: data.fullName,
+      gender: data.gender,
+      phoneNumber: data.phoneNumber || '',
       backupPhoneNumber: data.backupPhoneNumber ?? '',
       chronicDiseases: data.chronicDiseases ?? '',
       pastSurgeries: data.pastSurgeries ?? '',
       currentMedications: data.currentMedications ?? '',
       allergies: data.allergies ?? '',
+      isSmoker: data.isSmoker ?? false,
+      pregnancyOrBreastfeeding: data.pregnancyOrBreastfeeding ?? false,
       periodDetails: data.periodDetails ?? '',
-      nextAppointmentDate: '',
+      dentalRows: processedDentalRows.map((r) => ({
+        id: r.id,
+        date: r.date,
+        toothNo: `${r.location}_${r.toothNo}`, // store combined id for legacy rows
+        diagnosis: r.diagnosis ?? '',
+        treatmentProcedure: r.treatmentProcedure ?? '',
+        price: r.price,
+        payment: r.payment,
+        remainingAmount: r.remainingAmount,
+      })),
+      dentalChart,
+      nextAppointmentDate: processedDentalRows.find((r) => r.nextAppointmentDate)?.nextAppointmentDate ?? '',
       nextAppointmentTime: '',
-      dentalRows: processedDentalRows,
+      lastEditedBy: undefined,
+      lastEditedAt: undefined,
+      createdAt: '',
+      updatedAt: '',
     };
 
     try {
@@ -186,7 +249,8 @@ export default function AddPatientForm({ onSuccess }: Props) {
       setSaved(true);
       onSuccess?.(id);
     } catch (error) {
-      console.error("Error creating patient:", error);
+      console.error('Error creating patient:', error);
+      alert('حدث خطأ أثناء حفظ المريض. تحقق من Console للمزيد.');
     }
   };
 
@@ -214,11 +278,17 @@ export default function AddPatientForm({ onSuccess }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>رقم الملف</Label>
-            <Input type="number" {...register('fileNumber')} placeholder="001" error={errors.fileNumber?.message} />
+            <Input
+              type="text"
+              inputMode="numeric"
+              {...register('fileNumber' as any)}
+              placeholder="001"
+              error={errors?.fileNumber?.message as string | undefined}
+            />
           </div>
           <div>
             <Label>الاسم الثلاثي</Label>
-            <Input {...register('fullName')} placeholder="محمد أحمد العلي" error={errors.fullName?.message} />
+            <Input {...register('fullName' as any)} placeholder="محمد أحمد العلي" error={errors?.fullName?.message as string | undefined} />
           </div>
           <div>
             <Label>الجنس</Label>
@@ -228,7 +298,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
                   <input
                     type="radio"
                     value={g}
-                    {...register('gender')}
+                    {...register('gender' as any)}
                     className="accent-blue-600"
                   />
                   <span className="text-sm text-slate-700">{g === 'male' ? 'ذكر' : 'أنثى'}</span>
@@ -240,9 +310,9 @@ export default function AddPatientForm({ onSuccess }: Props) {
             <Label>رقم الجوال</Label>
             <Controller
               control={control}
-              name="phoneNumber"
+              name="phoneNumber" as any
               render={({ field }) => (
-                <PhoneInput value={field.value ?? ''} onChange={field.onChange} error={errors.phoneNumber?.message} />
+                <PhoneInput value={field.value ?? ''} onChange={field.onChange} error={errors?.phoneNumber?.message as string | undefined} />
               )}
             />
           </div>
@@ -250,7 +320,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
             <Label>رقم جوال احتياطي</Label>
             <Controller
               control={control}
-              name="backupPhoneNumber"
+              name="backupPhoneNumber" as any
               render={({ field }) => (
                 <PhoneInput value={field.value ?? ''} onChange={field.onChange} />
               )}
@@ -264,25 +334,25 @@ export default function AddPatientForm({ onSuccess }: Props) {
         <div className="space-y-4">
           <div>
             <Label>هل هناك أمراض مزمنة أو طارئة؟</Label>
-            <Textarea {...register('chronicDiseases')} placeholder="اذكر الأمراض إن وجدت..." />
+            <Textarea {...register('chronicDiseases' as any)} placeholder="اذكر الأمراض إن وجدت..." />
           </div>
           <div>
             <Label>هل أجريت عملية جراحية؟</Label>
-            <Textarea {...register('pastSurgeries')} placeholder="اذكر العمليات إن وجدت..." />
+            <Textarea {...register('pastSurgeries' as any)} placeholder="اذكر العمليات إن وجدت..." />
           </div>
           <div>
             <Label>هل تأخذ أي أدوية؟</Label>
-            <Textarea {...register('currentMedications')} placeholder="اذكر الأدوية إن وجدت..." />
+            <Textarea {...register('currentMedications' as any)} placeholder="اذكر الأدوية إن وجدت..." />
           </div>
           <div>
             <Label>هل هناك حساسية؟</Label>
-            <Textarea {...register('allergies')} placeholder="اذكر الحساسية إن وجدت..." />
+            <Textarea {...register('allergies' as any)} placeholder="اذكر الحساسية إن وجدت..." />
           </div>
 
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <Toggle
               value={isSmoker}
-              onChange={(v) => setValue('isSmoker', v)}
+              onChange={(v) => setValue('isSmoker' as any, v)}
               label="هل أنت مدخن؟"
             />
 
@@ -290,13 +360,13 @@ export default function AddPatientForm({ onSuccess }: Props) {
               <div className="space-y-3">
                 <Toggle
                   value={pregnancy}
-                  onChange={(v) => setValue('pregnancyOrBreastfeeding', v)}
+                  onChange={(v) => setValue('pregnancyOrBreastfeeding' as any, v)}
                   label="هل أنتِ حامل أو مرضع؟"
                 />
                 {pregnancy && (
                   <div>
                     <Label>يرجى تحديد الفترة</Label>
-                    <Input {...register('periodDetails')} placeholder="مثال: الشهر الخامس من الحمل" />
+                    <Input {...register('periodDetails' as any)} placeholder="مثال: الشهر الخامس من الحمل" />
                   </div>
                 )}
               </div>
@@ -311,7 +381,9 @@ export default function AddPatientForm({ onSuccess }: Props) {
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {['التاريخ', 'رقم السن', 'التشخيص', 'إجراء العلاج', 'السعر', 'الدفعة', 'المتبقي', ''].map((h) => (
+                {[
+                  'التاريخ', 'رقم السن', 'المكان', 'التشخيص', 'الإجراء', 'الجلسات (مجموع/مكتملة)',
+                  'ملاحظات الجلسات', 'الموعد القادم', 'السعر', 'الدفعة', 'المتبقي', ''].map((h) => (
                   <th key={h} className="px-3 py-2.5 text-right text-xs font-semibold text-slate-600 whitespace-nowrap">
                     {h}
                   </th>
@@ -326,22 +398,45 @@ export default function AddPatientForm({ onSuccess }: Props) {
                 return (
                   <tr key={field.id} className="hover:bg-slate-50">
                     <td className="px-2 py-2">
-                      <input type="date" {...register(`dentalRows.${idx}.date`)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-36" />
+                      <input type="date" {...register(`dentalRows.${idx}.date` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
                     </td>
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.toothNo`)} placeholder="18" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-20" />
+                      <select {...register(`dentalRows.${idx}.toothNo` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-20">
+                        {Array.from({ length: 8 }, (_, i) => (i + 1).toString()).map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
                     </td>
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.diagnosis`)} placeholder="تشخيص..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32" />
+                      <select {...register(`dentalRows.${idx}.location` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32">
+                        <option value="upper-right">فك علوي أيمن</option>
+                        <option value="upper-left">فك علوي أيسر</option>
+                        <option value="lower-right">فك سفلي أيمن</option>
+                        <option value="lower-left">فك سفلي أيسر</option>
+                      </select>
                     </td>
                     <td className="px-2 py-2">
-                      <input {...register(`dentalRows.${idx}.treatmentProcedure`)} placeholder="إجراء..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32" />
+                      <input {...register(`dentalRows.${idx}.diagnosis` as any)} placeholder="تشخيص..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
                     </td>
                     <td className="px-2 py-2">
-                      <input type="number" {...register(`dentalRows.${idx}.price`)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-24" />
+                      <input {...register(`dentalRows.${idx}.treatmentProcedure` as any)} placeholder="إجراء..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-32" />
                     </td>
                     <td className="px-2 py-2">
-                      <input type="number" {...register(`dentalRows.${idx}.payment`)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-24" />
+                      <div className="flex items-center gap-1">
+                        <input type="number" {...register(`dentalRows.${idx}.totalSessions` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <span className="text-xs text-slate-400">/</span>
+                        <input type="number" {...register(`dentalRows.${idx}.completedSessions` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">
+                      <input {...register(`dentalRows.${idx}.sessionNotes` as any)} placeholder="ملاحظات الجلسة..." className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-40" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <input type="date" {...register(`dentalRows.${idx}.nextAppointmentDate` as any)} className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-36" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <input type="number" {...register(`dentalRows.${idx}.price` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
+                    </td>
+                    <td className="px-2 py-2">
+                      <input type="number" {...register(`dentalRows.${idx}.payment` as any)} placeholder="0" className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-24" />
                     </td>
                     <td className="px-2 py-2">
                       <span className={`font-medium text-xs px-2 py-1 rounded-lg ${remaining > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
@@ -358,7 +453,7 @@ export default function AddPatientForm({ onSuccess }: Props) {
               })}
               {fields.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-slate-400 text-sm">
+                  <td colSpan={12} className="text-center py-8 text-slate-400 text-sm">
                     لا توجد صفوف — اضغط "إضافة صف" لإضافة سجل علاج
                   </td>
                 </tr>
