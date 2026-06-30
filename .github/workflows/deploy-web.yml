@@ -43,6 +43,9 @@ jobs:
       - name: Build for Web (override base path for GitHub Pages subfolder)
         run: npx vite build --base=/mina-system1/
  
+      - name: SPA fallback for GitHub Pages (fixes 404 on refresh/deep links)
+        run: cp dist/index.html dist/404.html
+ 
       - name: Setup Pages
         uses: actions/configure-pages@v5
  
