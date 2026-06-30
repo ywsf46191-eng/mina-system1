@@ -40,10 +40,8 @@ jobs:
       - name: Generate Icon
         run: npm run generate:icon
  
-      - name: Build for Web
-        run: npm run build
-        env:
-          VITE_BASE_PATH: /mina-system1/
+      - name: Build for Web (override base path for GitHub Pages subfolder)
+        run: npx vite build --base=/mina-system1/
  
       - name: Setup Pages
         uses: actions/configure-pages@v5
