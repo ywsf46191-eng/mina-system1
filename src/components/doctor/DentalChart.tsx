@@ -48,6 +48,14 @@ const QUADRANTS = [
   },
 ];
 
+// map quadrant code -> secretary location key used in AddPatientForm
+const QUADRANT_TO_LOCATION: Record<string, string> = {
+  Q1: 'upper-right',
+  Q2: 'upper-left',
+  Q3: 'lower-left',
+  Q4: 'lower-right',
+};
+
 function ToothButton({
   fdi, display, state, onClick,
 }: {
@@ -64,14 +72,29 @@ function ToothButton({
     done: 'bg-emerald-500 border-emerald-600 text-white shadow-emerald-100 shadow-md',
   };
 
+  const totalSessions = state?.totalSessions ?? 0;
+  const completedCount = Array.isArray(state?.completedSessions) ? state!.completedSessions!.length : 0;
+  const sessionBadge = totalSessions > 0 ? `${completedCount}/${totalSessions}` : null;
+
+  const tooltipExtraParts: string[] = [];
+  if (state?.diagnosis) tooltipExtraParts.push(state.diagnosis);
+  if (state?.notes) tooltipExtraParts.push(state.notes);
+  if (totalSessions > 0) tooltipExtraParts.push(`جلسات: ${sessionBadge}`);
+  const title = `السن ${fdi}${tooltipExtraParts.length > 0 ? ' — ' + tooltipExtraParts.join(' • ') : ''}`;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`السن ${fdi}${state?.diagnosis || state?.notes ? ' — ' + (state.diagnosis ?? state.notes ?? '').slice(0, 40) : ''}`}
-      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-2 text-xs font-bold transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 ${colors[status]}`}
+      title={title}
+      className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-2 text-xs font-bold transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 ${colors[status]}`}
     >
-      {display}
+      <span>{display}</span>
+      {sessionBadge && (
+        <span className="absolute -top-2 -right-2 text-[10px] bg-blue-600 text-white rounded-full px-1.5 py-0.5 leading-none shadow-md">
+          {sessionBadge}
+        </span>
+      )}
     </button>
   );
 }
@@ -79,9 +102,29 @@ function ToothButton({
 export function DentalChart({ chartState, onChange }: Props) {
   const [selectedTooth, setSelectedTooth] = useState<string | null>(null);
 
-  const getState = (fdi: string): ToothState | undefined => chartState[fdi];
+  // Try to resolve the ToothState for a displayed tooth (FDI). Support two storage shapes:
+  // 1) chartState keyed by FDI (existing doctor saves), e.g. '11', '12', ...
+  // 2) chartState keyed by secretary convention 'location_toothNo' e.g. 'upper-right_1'
+  const getState = (fdi: string, display: number, quadrantCode: string): ToothState | undefined => {
+    // prefer explicit FDI key
+    if (chartState[fdi]) return chartState[fdi];
+
+    // fallback to secretary key by quadrant + display number
+    const loc = QUADRANT_TO_LOCATION[quadrantCode];
+    if (loc) {
+      const key = `${loc}_${display}`;
+      if (chartState[key]) return chartState[key];
+    }
+
+    // last resort: try to find any entry whose key ends with `_${display}` (loose match)
+    const fallbackKey = Object.keys(chartState).find((k) => k.endsWith(`_${display}`));
+    if (fallbackKey) return chartState[fallbackKey];
+
+    return undefined;
+  };
 
   const handleSave = (toothId: string, state: ToothState) => {
+    // Save under the FDI key the doctor interacts with (keeps display consistent).
     onChange({ ...chartState, [toothId]: state });
   };
 
@@ -129,13 +172,25 @@ export function DentalChart({ chartState, onChange }: Props) {
             {/* Q1 — upper right (displayed right-to-left: 8 toward center 1) */}
             <div className="flex justify-end gap-1 pr-2 border-r-2 border-dashed border-slate-300 dark:border-slate-600">
               {QUADRANTS[0].teeth.map(({ fdi, display }) => (
-                <ToothButton key={fdi} fdi={fdi} display={display} state={getState(fdi)} onClick={() => setSelectedTooth(fdi)} />
+                <ToothButton
+                  key={fdi}
+                  fdi={fdi}
+                  display={display}
+                  state={getState(fdi, display, QUADRANTS[0].quadrant)}
+                  onClick={() => setSelectedTooth(fdi)}
+                />
               ))}
             </div>
             {/* Q2 — upper left (displayed left-to-right: 1 toward outside 8) */}
             <div className="flex justify-start gap-1 pl-2">
               {QUADRANTS[1].teeth.map(({ fdi, display }) => (
-                <ToothButton key={fdi} fdi={fdi} display={display} state={getState(fdi)} onClick={() => setSelectedTooth(fdi)} />
+                <ToothButton
+                  key={fdi}
+                  fdi={fdi}
+                  display={display}
+                  state={getState(fdi, display, QUADRANTS[1].quadrant)}
+                  onClick={() => setSelectedTooth(fdi)}
+                />
               ))}
             </div>
           </div>
@@ -152,13 +207,25 @@ export function DentalChart({ chartState, onChange }: Props) {
             {/* Q4 — lower right */}
             <div className="flex justify-end gap-1 pr-2 border-r-2 border-dashed border-slate-300 dark:border-slate-600">
               {QUADRANTS[2].teeth.map(({ fdi, display }) => (
-                <ToothButton key={fdi} fdi={fdi} display={display} state={getState(fdi)} onClick={() => setSelectedTooth(fdi)} />
+                <ToothButton
+                  key={fdi}
+                  fdi={fdi}
+                  display={display}
+                  state={getState(fdi, display, QUADRANTS[2].quadrant)}
+                  onClick={() => setSelectedTooth(fdi)}
+                />
               ))}
             </div>
             {/* Q3 — lower left */}
             <div className="flex justify-start gap-1 pl-2">
               {QUADRANTS[3].teeth.map(({ fdi, display }) => (
-                <ToothButton key={fdi} fdi={fdi} display={display} state={getState(fdi)} onClick={() => setSelectedTooth(fdi)} />
+                <ToothButton
+                  key={fdi}
+                  fdi={fdi}
+                  display={display}
+                  state={getState(fdi, display, QUADRANTS[3].quadrant)}
+                  onClick={() => setSelectedTooth(fdi)}
+                />
               ))}
             </div>
           </div>
@@ -177,7 +244,7 @@ export function DentalChart({ chartState, onChange }: Props) {
       {selectedTooth && (
         <ToothModal
           toothId={selectedTooth}
-          state={getState(selectedTooth) ?? { diagnosis: '', amount: 0, treatmentStatus: 'none' }}
+          state={getState(selectedTooth, 1, 'Q1') ?? { diagnosis: '', amount: 0, treatmentStatus: 'none' }}
           onSave={handleSave}
           onClose={() => setSelectedTooth(null)}
         />
